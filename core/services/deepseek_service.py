@@ -179,8 +179,6 @@ class DeepSeekService:
         try:
             with open(image_path, "rb") as image_file:
                 encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-                # Assume jpeg/png, base64 header usually works generically or we can detect type
-                # But Qwen/OpenAI usually accepts data:image/jpeg;base64 even for png
                 image_url = f"data:image/jpeg;base64,{encoded_string}"
         except Exception as e:
             return f"Error reading image: {e}"
@@ -192,12 +190,31 @@ class DeepSeekService:
                 "Content-Type": "application/json"
             }
             
-            # Using Qwen2-VL-72B-Instruct (Better) or 7B. Let's try 72B for quality if available, or 7B.
-            # Safe bet: Qwen/Qwen2-VL-7B-Instruct
+            # 使用 Qwen2-VL 模型
             model_name = "Qwen/Qwen2-VL-72B-Instruct" 
             
+            # 增强 Prompt：不再只是描述，而是进行思维评估
             if not prompt:
-                prompt = "请详细描述这张图片的内容，并结合上下文分析它。"
+                # 默认 Prompt 升级为苏格拉底式评估
+                analysis_prompt = """
+                你是一个视觉思考导师。用户上传了一张图片作为他对问题的思考草图或线索。
+                请执行以下任务：
+                1. **详细描述**：你看到了什么？（识别草图中的形状、文字、符号或照片中的关键物体）。
+                2. **关联分析**：这张图与当前对话上下文（如果有）有什么联系？它代表了用户的什么想法？
+                3. **启发式反馈**：不要直接告诉用户这张图是对是错。而是指出图中**有趣的地方**或**缺失的逻辑**，并提出一个引导性问题，让用户继续深挖。
+                
+                例如：
+                - "我看到你画了一个上升的曲线，这很有趣。但你注意到X轴代表什么了吗？"
+                - "这张图展示了......这是否意味着你认为......？"
+                """
+            else:
+                # 如果用户提供了文字说明，结合文字进行评估
+                analysis_prompt = f"""
+                用户上传了一张图片，并附言："{prompt}"。
+                请结合图片和用户的附言，分析他的思维逻辑。
+                指出他想法中的**亮点**和**盲点**，并提出下一个思考方向。
+                不要直接给最终答案，而是通过提问来引导修正。
+                """
 
             payload = {
                 "model": model_name, 
@@ -206,7 +223,7 @@ class DeepSeekService:
                         "role": "user",
                         "content": [
                             {"type": "image_url", "image_url": {"url": image_url}},
-                            {"type": "text", "text": prompt}
+                            {"type": "text", "text": analysis_prompt}
                         ]
                     }
                 ],
@@ -214,9 +231,7 @@ class DeepSeekService:
             }
             
             response = requests.post(url, json=payload, headers=headers)
-            # If 72B fails (e.g. 404 or 400), fallback to 7B? 
-            # But let's assume it works or just use 7B which is safer.
-            # Actually, let's use 7B to be safe on quota/availability.
+            
             if response.status_code != 200:
                 print(f"WARNING: Vision API failed with {model_name}, trying 7B...")
                 payload["model"] = "Qwen/Qwen2-VL-7B-Instruct"
