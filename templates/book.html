@@ -381,36 +381,23 @@
                 // Clean final review tags
                 let cleanText = turn.ai.text.replace(/<FINAL_REVIEW>[\s\S]*?<\/FINAL_REVIEW>/g, '');
                 
-                // Check for POP_QUIZ
-                let quizHtml = '';
-                const quizMatch = cleanText.match(/<POP_QUIZ>([\s\S]*?)<\/POP_QUIZ>/);
-                let quizData = null;
-                
-                if (quizMatch) {
+                // Check for Challenge
+                // We use a regex to extract <CHALLENGE>...</CHALLENGE> from text
+                // Because we stored it in text_content for persistence
+                let challengeData = null;
+                const challengeMatch = cleanText.match(/<CHALLENGE>([\s\S]*?)<\/CHALLENGE>/);
+                if (challengeMatch) {
                     try {
-                        quizData = JSON.parse(quizMatch[1]);
-                        cleanText = cleanText.replace(/<POP_QUIZ>[\s\S]*?<\/POP_QUIZ>/g, '');
-                        
-                        // Generate Quiz Card
-                        const quizId = 'quiz-' + Math.random().toString(36).substr(2, 9);
-                        quizHtml = `
-                            <div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-5" id="${quizId}">
-                                <div class="flex items-center gap-2 text-amber-800 font-bold mb-3">
-                                    <i class="ph-fill ph-lightbulb"></i> 小测验：验证你的理解
-                                </div>
-                                <p class="text-amber-900 mb-4 font-medium">${quizData.question}</p>
-                                <div class="flex gap-2">
-                                    <input type="text" id="${quizId}-input" class="flex-1 rounded-lg border-amber-300 focus:border-amber-500 focus:ring-amber-500" placeholder="在此输入答案...">
-                                    <button onclick="checkQuiz('${quizId}', '${quizData.correct_answer}')" class="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 font-medium">提交</button>
-                                </div>
-                                <div id="${quizId}-feedback" class="mt-2 text-sm hidden"></div>
-                            </div>
-                        `;
-                    } catch (e) {
-                        console.error("Quiz parse error", e);
-                    }
+                        challengeData = JSON.parse(challengeMatch[1]);
+                        cleanText = cleanText.replace(/<CHALLENGE>[\s\S]*?<\/CHALLENGE>/, '');
+                    } catch(e) { console.error("Challenge parse error", e); }
                 }
-                
+
+                // If challenge data is in turn.ai object directly (from live API response)
+                if (!challengeData && turn.ai.challenge) {
+                    challengeData = turn.ai.challenge;
+                }
+
                 aiHtml += `
                     <div class="flex gap-4">
                          <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-white flex-shrink-0 shadow-sm">
@@ -421,7 +408,8 @@
                             <div class="bg-slate-50 border border-slate-100 p-6 rounded-2xl rounded-tl-none text-slate-700 leading-relaxed prose prose-slate max-w-none">
                                 ${turn.ai.image ? `<img src="${turn.ai.image}" class="mb-4 rounded-xl shadow-md border border-slate-200">` : ''}
                                 ${marked.parse(cleanText)}
-                                ${quizHtml}
+                                
+                                ${challengeData ? renderChallenge(challengeData, pageIdx) : ''}
                             </div>
                         </div>
                     </div>
@@ -447,18 +435,86 @@
             document.getElementById('dynamic-pages').appendChild(pageDiv);
             
             // Logic for Input visibility
-            // If it's the last page AND AI has replied (turn complete), show input for NEXT turn
-            // If it's the last page AND AI is missing (waiting), hide input
-            // If it's history page (not last), hide input, show nav
+            // If Challenge exists and NOT solved, HIDE main input?
+            // Or let user answer challenge to proceed.
+            // Let's hide main input if challenge is active on this page.
+            
+            // For MVP, we don't strictly block.
+            // But visually, the challenge IS the input for this turn.
             
             if (pageIdx === totalPages && turn.ai && !isWaiting) {
-                toggleInputArea(true); // Ready for next input
+                // If there is a challenge, user should interact with it first?
+                // But challenge is inside AI bubble.
+                // Let's keep main input visible for general replies, 
+                // but maybe the challenge interaction sends a message automatically.
+                toggleInputArea(true); 
             } else {
-                toggleInputArea(false); // Read only or waiting
+                toggleInputArea(false); 
             }
         }
         
         updatePagination();
+    }
+
+    function renderChallenge(payload, pageIdx) {
+        if (payload.type !== 'fill_in_the_blank') return '';
+        const data = payload.data;
+        // Escape quotes for HTML attributes
+        const question = data.question.replace(/"/g, '&quot;');
+        const answer = data.correct_answer.replace(/"/g, '&quot;');
+        const hint = (data.hint || '').replace(/"/g, '&quot;');
+        const challengeId = `challenge-${pageIdx}`;
+        
+        // Render UI
+        // Replace ___ with <input>
+        const parts = question.split('___');
+        let html = '<div class="mt-6 bg-white p-4 rounded-xl border-l-4 border-indigo-500 shadow-sm">';
+        html += '<div class="text-sm font-bold text-indigo-600 mb-2 uppercase tracking-wide">理解力挑战</div>';
+        html += '<div class="text-lg text-slate-800 flex flex-wrap items-center gap-2">';
+        
+        // Simple one-blank support for MVP
+        html += parts[0];
+        html += `<input type="text" id="${challengeId}-input" class="border-b-2 border-indigo-200 focus:border-indigo-600 outline-none px-2 py-1 w-32 text-center font-bold text-indigo-700 bg-indigo-50 rounded" placeholder="?">`;
+        if (parts[1]) html += parts[1];
+        
+        html += '</div>';
+        
+        html += `<div class="mt-4 flex items-center gap-3">
+            <button onclick="checkChallenge('${challengeId}', '${answer}')" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition shadow-sm">
+                验证答案
+            </button>
+            <span id="${challengeId}-msg" class="text-sm font-medium"></span>
+        </div>`;
+        
+        html += '</div>';
+        return html;
+    }
+
+    function checkChallenge(id, correctAnswer) {
+        const input = document.getElementById(id + '-input');
+        const msg = document.getElementById(id + '-msg');
+        const userVal = input.value.trim().toLowerCase();
+        const correctVal = correctAnswer.trim().toLowerCase();
+        
+        // Simple fuzzy check (contains)
+        if (userVal && (userVal === correctVal || userVal.includes(correctVal) || correctVal.includes(userVal))) {
+            msg.className = "text-sm font-medium text-green-600 animate-fade-in";
+            msg.innerHTML = '<i class="ph-bold ph-check-circle"></i> 正确！';
+            input.classList.add('border-green-500', 'bg-green-50');
+            input.disabled = true;
+            
+            // Auto-send success message to AI to proceed?
+            // Or just let user feel good.
+            // Let's just let user feel good for now.
+        } else {
+            msg.className = "text-sm font-medium text-red-500 animate-shake";
+            msg.innerHTML = '<i class="ph-bold ph-warning-circle"></i> 不太对，再想想？';
+            input.classList.add('border-red-300', 'bg-red-50');
+            setTimeout(() => {
+                 input.classList.remove('border-red-300', 'bg-red-50');
+                 msg.classList.remove('animate-shake');
+            }, 1000);
+        }
     }
 
     function updatePagination() {
@@ -536,33 +592,6 @@
                 // Only show skip if we are waiting? No, skip is for user turn.
                 // Actually, skip is useful when user is STUCK at input.
             }
-        }
-    }
-
-    // --- Quiz Logic ---
-    function checkQuiz(quizId, correctAnswer) {
-        const input = document.getElementById(quizId + '-input');
-        const feedback = document.getElementById(quizId + '-feedback');
-        const userAnswer = input.value.trim();
-        
-        if (!userAnswer) return;
-        
-        // Simple fuzzy match (case insensitive, contains key word)
-        // Ideally backend validates, but for "Pop Quiz" simple client side is faster feedback loop
-        if (userAnswer.toLowerCase().includes(correctAnswer.toLowerCase()) || correctAnswer.toLowerCase().includes(userAnswer.toLowerCase())) {
-            feedback.innerHTML = '<span class="text-green-600 font-bold"><i class="ph-bold ph-check"></i> 正确！你已经掌握了这个概念。</span>';
-            feedback.classList.remove('hidden');
-            input.disabled = true;
-            
-            // Unlock next step automatically
-            setTimeout(() => {
-                sendMessageInternal(`我答对了，答案是：${userAnswer}`);
-            }, 1000);
-        } else {
-            feedback.innerHTML = '<span class="text-red-500"><i class="ph-bold ph-x"></i> 不太对哦，再想想？</span>';
-            feedback.classList.remove('hidden');
-            feedback.classList.add('animate-shake');
-            setTimeout(() => feedback.classList.remove('animate-shake'), 500);
         }
     }
 

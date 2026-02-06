@@ -177,27 +177,6 @@ def _handle_chat_response(conversation, user_input, image_file=None):
              Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=guide_text)
              return JsonResponse({'status': 'success', 'answer': guide_text})
              
-        elif intent == 'pop_quiz':
-             # AI 决定出一道填空题
-             question = analysis.get('quiz_question', '请填写关键缺失的词汇：___')
-             answer_key = analysis.get('quiz_correct_answer', '')
-             guide_text = visual_guide_text if visual_guide_text else "为了确认你已经掌握了这个概念，请完成下面这道填空题。"
-             
-             # 我们将 Quiz 数据编码为特定的 JSON 格式存入 text_content，或者使用特定前缀
-             # 为了兼容现有前端逻辑，我们将其存为 JSON 字符串，但在前端需要解析
-             # 这里我们使用一个特殊标记 <POP_QUIZ>
-             
-             quiz_data = {
-                 "question": question,
-                 "correct_answer": answer_key
-             }
-             quiz_json = json.dumps(quiz_data)
-             
-             full_content = f"{guide_text}<POP_QUIZ>{quiz_json}</POP_QUIZ>"
-             
-             Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=full_content)
-             return JsonResponse({'status': 'success', 'answer': full_content})
-
         elif intent == 'no_idea' or intent == 'has_idea':
             # 只有 has_idea (或者 no_idea 的特殊情况) 才生图
             # 但根据新逻辑，no_idea 应该被 probe_deeper 捕获。除非模型坚持用 no_idea。
@@ -231,6 +210,46 @@ def _handle_chat_response(conversation, user_input, image_file=None):
                     text_content=guide_text
                 )
                 return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
+
+        elif intent == 'verify_understanding':
+            # AI wants to verify understanding with a Fill-in-the-Blank challenge
+            fill_data = analysis.get('fill_in_the_blank', {})
+            guide_text = visual_guide_text if visual_guide_text else "看来你已经抓住关键了。来做一个小测试验证一下你的理解。"
+            
+            # Save fill-in-the-blank data into interaction metadata (text_content will store JSON string or we add a field)
+            # For simplicity, we embed it in text_content with a special marker or just return it in JSON response
+            # But we need to save it to history.
+            # Let's use a special prefix or just save the guide text, and frontend handles the interactive part if it's live.
+            # But if we reload page, we need the data.
+            # So, we should store it. Let's assume Interaction has a flexible field or we append to text.
+            
+            # Pack data into a structured format for frontend
+            challenge_payload = {
+                "type": "fill_in_the_blank",
+                "data": fill_data
+            }
+            
+            Interaction.objects.create(
+                conversation=conversation,
+                type='ai_feedback',
+                text_content=guide_text,
+                # We might need a 'metadata' field in Interaction model for clean architecture, 
+                # but for now let's append a hidden JSON block
+                # Or relying on the fact that for current session, we return it in API response.
+                # For history persistence, we might lose the interactive widget if we don't save it.
+                # Hack: Append <CHALLENGE>JSON</CHALLENGE> to text_content
+            )
+            
+            # Update the text content with hidden data
+            full_content = guide_text + f"\n<CHALLENGE>{json.dumps(challenge_payload)}</CHALLENGE>"
+            conversation.interactions.last().text_content = full_content
+            conversation.interactions.last().save()
+
+            return JsonResponse({
+                'status': 'success', 
+                'answer': guide_text,
+                'challenge': challenge_payload
+            })
 
         elif intent == 'finish':
             # AI determined that the logical chain is complete
