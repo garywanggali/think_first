@@ -1,5 +1,5 @@
 Django==3.2.25
-python-dotenv==0.21.0
+python-dotenv==0.20.0
 requests==2.27.1
 urllib3==1.26.18
 charset-normalizer==2.0.12
