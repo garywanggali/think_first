@@ -1,0 +1,509 @@
+{% extends 'base.html' %}
+
+{% block footer %}{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<div class="flex h-[calc(100vh-64px)] overflow-hidden">
+    <!-- 左侧：历史记录 (可折叠或简化) -->
+    <div class="w-64 bg-slate-50 border-r border-slate-200 hidden md:flex flex-col">
+        <div class="p-4 border-b border-slate-200">
+            <h2 class="font-bold text-slate-700">思考记录</h2>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-2">
+            {% for c in user.conversations.all %}
+                <div class="group flex items-center justify-between p-3 rounded-lg hover:bg-white hover:shadow-sm transition {% if c.id == conversation.id %}bg-white shadow-sm{% endif %}">
+                    <a href="{% url 'chat_detail' c.id %}" class="block flex-1 text-sm text-slate-600 truncate {% if c.id == conversation.id %}font-medium text-indigo-600{% endif %}">
+                        {{ c.topic|default:"新思考..." }}
+                        <div class="text-xs text-slate-400 mt-1">{{ c.created_at|date:"m-d H:i" }}</div>
+                    </a>
+                    <button onclick="deleteConversation({{ c.id }}, event)" class="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 中间：聊天区域 -->
+    <div class="flex-1 flex flex-col bg-white relative h-full">
+        <!-- 消息列表 -->
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth">
+            <!-- 欢迎语 -->
+            <div class="flex gap-4">
+                <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                    <i class="ph-fill ph-robot text-2xl"></i>
+                </div>
+                <div class="bg-slate-100 p-4 rounded-2xl rounded-tl-none max-w-2xl">
+                    <p class="text-slate-700">你好，我是你的思考导师。今天有什么困扰你的问题？请直接告诉我，但请记住，我不会直接给你答案。</p>
+                </div>
+            </div>
+
+            {% for interaction in interactions %}
+                <!-- 用户侧消息 -->
+                {% if interaction.type == 'question' or interaction.type == 'probe_answer' or interaction.type == 'user_interpretation' %}
+                <div class="flex gap-4 flex-row-reverse">
+                    <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
+                        <i class="ph-fill ph-user text-2xl"></i>
+                    </div>
+                    <div class="bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none max-w-2xl">
+                        <p>{{ interaction.text_content }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- AI 侧消息 -->
+                {% if interaction.type == 'ai_feedback' or interaction.type == 'ai_image' %}
+                    <div class="flex gap-4">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                            <i class="ph-fill ph-robot text-2xl"></i>
+                        </div>
+                        <div class="bg-slate-100 p-4 rounded-2xl rounded-tl-none max-w-2xl">
+                             {% if interaction.image_url %}
+                                <div class="mb-4">
+                                    <img src="{{ interaction.image_url }}" class="rounded-xl shadow-lg border border-indigo-100 max-w-full bg-slate-100 min-h-[200px]" loading="lazy" referrerpolicy="no-referrer" onload="scrollToBottom()">
+                                </div>
+                            {% endif %}
+                            
+                            {% if interaction.text_content %}
+                                <div class="prose prose-slate break-words max-w-none prose-p:my-0 prose-headings:my-1 leading-normal ai-message-content">{{ interaction.text_content|safe }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+            
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="hidden flex gap-4">
+                <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                    <i class="ph-fill ph-robot text-2xl"></i>
+                </div>
+                <div class="bg-slate-100 p-4 rounded-2xl rounded-tl-none typing-indicator text-slate-500">
+                    <span>.</span><span>.</span><span>.</span>
+                </div>
+            </div>
+            
+            <!-- 最终报告容器 -->
+            <div id="final-review-container" class="hidden animate-fade-in">
+                <!-- 动态插入 -->
+            </div>
+        </div>
+
+        <!-- 底部输入区 -->
+        <div class="border-t border-slate-200 bg-white p-4 w-full z-10 transition-transform duration-300 flex-shrink-0" id="input-area">
+            <div class="max-w-4xl mx-auto">
+                <!-- 工具栏 -->
+                <div class="flex gap-2 mb-2">
+                    <button onclick="switchTab('text')" id="tab-text" class="px-3 py-1 text-sm rounded-full bg-indigo-100 text-indigo-700 font-medium">文字</button>
+                    <button onclick="switchTab('canvas')" id="tab-canvas" class="px-3 py-1 text-sm rounded-full hover:bg-slate-100 text-slate-600">画板</button>
+                    <!-- <button onclick="switchTab('audio')" id="tab-audio" class="px-3 py-1 text-sm rounded-full hover:bg-slate-100 text-slate-600">语音</button> -->
+                </div>
+
+                <!-- 文本输入 -->
+                <div id="input-text" class="block">
+                    <div class="flex gap-2">
+                        <textarea id="message-input" rows="3" class="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none" placeholder="输入你的想法..."></textarea>
+                        <button onclick="sendMessage()" class="bg-indigo-600 text-white px-6 rounded-xl hover:bg-indigo-700 transition flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 画板输入 -->
+                <div id="input-canvas" class="hidden border border-slate-300 rounded-xl overflow-hidden bg-slate-50">
+                    <canvas id="drawing-board" width="800" height="300" class="cursor-crosshair w-full bg-white"></canvas>
+                    <div class="bg-slate-100 p-2 flex justify-between items-center border-t border-slate-200">
+                        <div class="flex gap-2 text-sm">
+                            <button onclick="clearCanvas()" class="text-red-500 hover:text-red-700">清空</button>
+                        </div>
+                        <button onclick="sendCanvas()" class="bg-indigo-600 text-white px-4 py-1 rounded-lg text-sm hover:bg-indigo-700">发送画图</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const conversationId = "{{ conversation.id }}";
+    let isWaiting = false;
+
+    // Scroll to bottom
+    const chatContainer = document.getElementById('chat-messages');
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    function switchTab(tab) {
+        document.querySelectorAll('[id^="input-"]').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('[id^="tab-"]').forEach(el => {
+            el.classList.remove('bg-indigo-100', 'text-indigo-700');
+            el.classList.add('text-slate-600', 'hover:bg-slate-100');
+        });
+
+        document.getElementById(`input-${tab}`).classList.remove('hidden');
+        const btn = document.getElementById(`tab-${tab}`);
+        btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+        btn.classList.add('bg-indigo-100', 'text-indigo-700');
+    }
+
+    async function sendMessage() {
+        if (isWaiting) return;
+        const input = document.getElementById('message-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        // UI Update
+        appendUserMessage(text);
+        input.value = '';
+        showLoading();
+
+        try {
+            const response = await fetch('{% url "api_send_message" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    conversation_id: conversationId,
+                    query: text
+                })
+            });
+            console.log("Sending message...", text); // Debug
+            const data = await response.json();
+            console.log("Response received:", data); // Debug
+            
+            hideLoading();
+            if (data.status === 'success') {
+                appendAgentMessage(data.answer, data.image_url);
+                if (data.answer.includes('<FINAL_REVIEW>')) {
+                    handleFinalReview(data.answer);
+                }
+            } else {
+                alert('出错啦：' + data.message);
+            }
+        } catch (e) {
+            hideLoading();
+            console.error(e);
+            alert('网络错误');
+        }
+    }
+
+    function appendUserMessage(text) {
+        const div = document.createElement('div');
+        div.className = 'flex gap-4 flex-row-reverse animate-fade-in-up';
+        div.innerHTML = `
+            <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
+                <i class="ph-fill ph-user text-2xl"></i>
+            </div>
+            <div class="bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none max-w-2xl">
+                <p>${text.replace(/\n/g, '<br>')}</p>
+            </div>
+        `;
+        chatContainer.insertBefore(div, document.getElementById('loading-indicator'));
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function appendAgentMessage(text, imageUrl) {
+        // 去除 potential XML tags visible to user if any
+        let cleanText = text ? text.replace(/<FINAL_REVIEW>[\s\S]*?<\/FINAL_REVIEW>/g, '') : '';
+        
+        const div = document.createElement('div');
+        div.className = 'flex gap-4 animate-fade-in-up';
+        
+        let contentHtml = '';
+        
+        if (imageUrl) {
+            contentHtml += `
+                <div class="mb-4">
+                    <img src="${imageUrl}" class="rounded-xl shadow-lg border border-indigo-100 max-w-full bg-slate-100 min-h-[200px]" alt="AI Generated Thought Image" loading="lazy" referrerpolicy="no-referrer" onload="scrollToBottom()">
+                </div>
+            `;
+        }
+        
+        if (cleanText && cleanText.trim()) {
+            contentHtml += `
+                <div class="prose prose-slate break-words max-w-none prose-p:my-0 prose-headings:my-1 leading-normal ai-message-content">${marked.parse(cleanText)}</div>
+            `;
+        }
+        
+        div.innerHTML = `
+            <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
+                <i class="ph-fill ph-robot text-2xl"></i>
+            </div>
+            <div class="bg-slate-100 p-4 rounded-2xl rounded-tl-none max-w-2xl">
+                ${contentHtml}
+            </div>
+        `;
+        
+        if (!contentHtml) return; // 什么都没有就不显示
+
+        chatContainer.insertBefore(div, document.getElementById('loading-indicator'));
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function scrollToBottom() {
+        // 立即滚动
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        
+        // 延迟再次滚动，以防布局变化（如图片加载撑开高度）
+        setTimeout(() => {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }, 100);
+        
+        setTimeout(() => {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }, 300);
+    }
+
+    function showLoading() {
+        document.getElementById('loading-indicator').classList.remove('hidden');
+        isWaiting = true;
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function hideLoading() {
+        document.getElementById('loading-indicator').classList.add('hidden');
+        isWaiting = false;
+    }
+
+    function handleFinalReview(fullText) {
+        // 隐藏输入框
+        document.getElementById('input-area').classList.add('translate-y-full');
+        
+        try {
+            const jsonStr = fullText.split('<FINAL_REVIEW>')[1].split('</FINAL_REVIEW>')[0];
+            const data = JSON.parse(jsonStr);
+            
+            const container = document.getElementById('final-review-container');
+            container.classList.remove('hidden');
+            
+            // 渲染时间轴
+            let stepsHtml = data.thinking_path.map((step, idx) => `
+                <div class="relative pl-8 pb-8 border-l-2 border-indigo-200 last:border-0 last:pb-0">
+                    <div class="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-600 border-4 border-white"></div>
+                    <div class="mb-1 text-sm text-indigo-600 font-bold uppercase tracking-wider">${step.stage}</div>
+                    <div class="text-slate-700 bg-white p-4 rounded-lg shadow-sm border border-slate-100">
+                        ${step.description}
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="mt-8 mb-12">
+                    <div class="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-3xl border border-indigo-100">
+                        <h2 class="text-2xl font-bold text-indigo-900 mb-6 flex items-center gap-2">
+                            <i class="ph-fill ph-confetti text-3xl text-indigo-600"></i>
+                            <span>思考旅程回顾</span>
+                        </h2>
+                        
+                        <div class="mb-8">
+                            <h3 class="font-bold text-slate-700 mb-2">你的思维路径：</h3>
+                            <div class="ml-2">
+                                ${stepsHtml}
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-xl border-l-4 border-amber-400 shadow-sm">
+                            <h3 class="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                                <i class="ph-fill ph-lightbulb text-amber-500 text-xl"></i>
+                                <span>导师建议</span>
+                            </h3>
+                            <p class="text-slate-600 italic">"${data.advice}"</p>
+                        </div>
+
+                         <div class="mt-8 text-center">
+                            <a href="{% url 'index' %}" class="inline-block px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">完成思考</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        } catch (e) {
+            console.error("Parse review failed", e);
+        }
+    }
+
+    // --- Auto Retry Logic ---
+    // Check if the last message is from user (meaning AI failed to respond or user refreshed)
+    document.addEventListener('DOMContentLoaded', async () => {
+        // 1. Render Markdown for existing AI messages
+        document.querySelectorAll('.ai-message-content').forEach(el => {
+            // 获取原始文本（去除多余空白，但 marked 需要保留换行）
+            const rawText = el.textContent.trim();
+            if (rawText) {
+                el.innerHTML = marked.parse(rawText);
+            }
+        });
+
+        // Simple check: is the last element a user message?
+        // We can check the DOM structure. User messages have flex-row-reverse.
+        const messages = document.getElementById('chat-messages').children;
+        // Filter out hidden elements like loading-indicator and final-review-container
+        const visibleMessages = Array.from(messages).filter(el => 
+            !el.id && el.classList.contains('flex')
+        );
+        
+        if (visibleMessages.length > 0) {
+            const lastMsg = visibleMessages[visibleMessages.length - 1];
+            // User message bubble has 'flex-row-reverse' class
+            if (lastMsg.classList.contains('flex-row-reverse')) {
+                console.log("Last message is from user. Triggering auto-retry...");
+                showLoading();
+                
+                try {
+                    const response = await fetch('{% url "api_retry_last_message" %}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ conversation_id: conversationId })
+                    });
+                    const data = await response.json();
+                    
+                    hideLoading();
+                    
+                    if (data.status === 'success') {
+                        appendAgentMessage(data.answer, data.image_url);
+                        if (data.answer.includes('<FINAL_REVIEW>')) {
+                            handleFinalReview(data.answer);
+                        }
+                    } else if (data.status === 'no_need_to_retry') {
+                        console.log("Server said no need to retry.");
+                    }
+                } catch (e) {
+                    console.error("Auto retry failed", e);
+                    hideLoading();
+                }
+            }
+        }
+    });
+
+    // --- Canvas Logic ---
+    const canvas = document.getElementById('drawing-board');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    // Resize canvas properly
+    function resizeCanvas() {
+        const parent = canvas.parentElement;
+        if (parent && parent.clientWidth > 0) {
+           // canvas.width = parent.clientWidth; // Simple resize resets content, ignore for MVP
+        }
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if (!isDrawing) return;
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.strokeStyle = '#4f46e5';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+    canvas.addEventListener('mouseout', () => isDrawing = false);
+
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function sendCanvas() {
+        // Convert canvas to base64 and send (Simplified for MVP: send as text desc or upload)
+        // For now, let's just convert to dataURL and put in img tag for user preview
+        // And send a special text to backend "[用户上传了一张思维导图]"
+        
+        const dataURL = canvas.toDataURL();
+        
+        // Show in chat
+        const div = document.createElement('div');
+        div.className = 'flex gap-4 flex-row-reverse animate-fade-in-up';
+        div.innerHTML = `
+            <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
+                <i class="ph-fill ph-user text-2xl"></i>
+            </div>
+            <div class="bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none max-w-2xl">
+                <img src="${dataURL}" class="rounded-lg bg-white">
+            </div>
+        `;
+        chatContainer.insertBefore(div, document.getElementById('loading-indicator'));
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        
+        // Reset
+        clearCanvas();
+        switchTab('text');
+        
+        // Actual send
+        // Note: Real implementation should upload file. Here we just send text trigger.
+        // In a real app, you'd upload the Blob to the server.
+        sendMessageInternal("[用户上传了一张思维草图，请基于此进行分析]");
+    }
+    
+    async function sendMessageInternal(text) {
+         showLoading();
+         try {
+            console.log("Sending internal message...", text); // Debug
+            const response = await fetch('{% url "api_send_message" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    conversation_id: conversationId,
+                    query: text
+                })
+            });
+            const data = await response.json();
+            console.log("Internal Response received:", data); // Debug
+            hideLoading();
+            if (data.status === 'success') {
+                appendAgentMessage(data.answer, data.image_url);
+                 if (data.answer.includes('<FINAL_REVIEW>')) {
+                    handleFinalReview(data.answer);
+                }
+            }
+         } catch(e) {
+             console.error("Internal send error:", e);
+             hideLoading();
+         }
+    }
+
+    async function deleteConversation(id, event) {
+        event.preventDefault(); // 阻止链接跳转
+        if (!confirm('确定要删除这条思考记录吗？')) return;
+
+        try {
+            const response = await fetch(`/chat/${id}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                }
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                // 如果删除的是当前对话，跳转到新对话
+                if (id == conversationId) {
+                    window.location.href = "{% url 'chat_new' %}";
+                } else {
+                    // 找到对应的 DOM 元素并移除，而不是刷新页面
+                    const btn = event.target.closest('button');
+                    const item = btn.closest('.group');
+                    if (item) {
+                        item.remove();
+                    }
+                }
+            } else {
+                alert('删除失败');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('网络错误');
+        }
+    }
+</script>
+{% endblock %}

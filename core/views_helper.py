@@ -1,0 +1,147 @@
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+from .models import Conversation, Interaction, ThinkingReview
+from .services.deepseek_service import DeepSeekService
+import json
+
+@login_required
+@csrf_exempt
+def api_retry_last_message(request):
+    """
+    重试/补全最后一条未回复的用户消息
+    """
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        conversation_id = data.get('conversation_id')
+        conversation = get_object_or_404(Conversation, id=conversation_id, user=request.user)
+        
+        last_interaction = conversation.interactions.last()
+        
+        # 只有当最后一条消息是用户发出的，才需要重试
+        if last_interaction and last_interaction.type in ['question', 'probe_answer', 'user_interpretation']:
+            # 伪造一个 request.body 再次调用 api_send_message
+            # 但我们需要稍微修改 api_send_message 逻辑，避免它重复创建用户消息
+            # 简单起见，这里直接复用 api_send_message 的核心逻辑，或者重构
+            
+            # 由于 api_send_message 会先创建用户消息，直接调用会导致重复
+            # 所以我们必须重构逻辑。
+            # 方案：调用一个新的内部函数 _process_chat_logic，它接受 user_input 但不创建 Interaction
+            
+            user_input = last_interaction.text_content
+            
+            # 删除最后这条用户消息，因为它会在 _process_chat_logic 中被重新创建
+            # 这是一个简单的 hack，避免大规模重构
+            last_interaction.delete()
+            
+            # 构造新的 request 对象传递给 api_send_message
+            # 或者更优雅地：将逻辑抽取出来。
+            # 为了快速修复，我们抽取逻辑到 _handle_chat_response
+            
+            return _handle_chat_response(conversation, user_input)
+            
+        return JsonResponse({'status': 'no_need_to_retry'})
+    return JsonResponse({'status': 'error'}, status=405)
+
+def _handle_chat_response(conversation, user_input):
+    ai_service = DeepSeekService()
+    
+    # 1. Review 状态
+    if conversation.status == 'review':
+        return JsonResponse({'status': 'success', 'answer': '思考已完成。'})
+
+    # 2. Initial Probe 状态
+    if conversation.status == 'initial_probe':
+        # 记录用户回答（问题）
+        Interaction.objects.create(conversation=conversation, type='question', text_content=user_input)
+        
+        answer = ai_service.generate_initial_probe(user_input)
+        if not answer:
+            answer = "收到。关于这个问题，你现在有什么初步的想法或直觉吗？"
+        
+        Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=answer)
+        
+        conversation.status = 'visual_loop' 
+        conversation.topic = user_input[:30]
+        conversation.save()
+        
+        return JsonResponse({'status': 'success', 'answer': answer})
+        
+    # 3. Visual Loop 状态
+    elif conversation.status == 'visual_loop':
+        last_interaction = conversation.interactions.last()
+        recent_interactions = conversation.interactions.all().order_by('-created_at')[:5]
+        recent_interactions = reversed(recent_interactions)
+        
+        context = "\n".join([f"{i.type}: {i.text_content or i.image_prompt}" for i in recent_interactions])
+        analysis = ai_service.analyze_user_input(conversation.topic, user_input, context)
+        
+        intent = analysis.get('intent')
+        feedback = analysis.get('feedback', '')
+        visual_prompt = analysis.get('visual_prompt')
+        visual_guide_text = analysis.get('visual_guide_text')
+        
+        # 记录用户输入
+        user_interaction_type = 'probe_answer' if last_interaction and last_interaction.type == 'ai_feedback' else 'user_interpretation'
+        Interaction.objects.create(conversation=conversation, type=user_interaction_type, text_content=user_input)
+
+        if intent == 'no_idea' or intent == 'has_idea':
+            prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, user_input if intent == 'has_idea' else "Concept of " + conversation.topic)
+            image_url = ai_service.generate_image(prompt)
+            guide_text = visual_guide_text if visual_guide_text else "这是一张为你生成的视觉线索图。请仔细观察它，你看到了什么？这与你的问题有什么联系？"
+
+            Interaction.objects.create(
+                conversation=conversation,
+                type='ai_image',
+                image_url=image_url,
+                image_prompt=prompt,
+                text_content=guide_text
+            )
+            return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
+
+        elif intent == 'explaining_image':
+            is_pass = analysis.get('evaluation') == 'pass'
+            
+            if is_pass:
+                pass_count = conversation.interactions.filter(is_passed=True).count()
+                
+                if pass_count >= 2:
+                    conversation.status = 'review'
+                    conversation.is_completed = True
+                    conversation.save()
+                    
+                    final_review = {
+                        "summary": "你通过三张图片的联想，成功构建了问题的全貌。",
+                        "thinking_path": [{"stage": "Done", "description": "Completed visual thinking."}],
+                        "advice": "你的视觉联想能力很强。"
+                    }
+                    ThinkingReview.objects.create(
+                        conversation=conversation,
+                        summary_text=final_review['summary'],
+                        thinking_path_json=final_review['thinking_path'],
+                        advice_text=final_review['advice']
+                    )
+                    return JsonResponse({'status': 'success', 'answer': f"<FINAL_REVIEW>{json.dumps(final_review)}</FINAL_REVIEW>"})
+                else:
+                    Interaction.objects.filter(id=conversation.interactions.last().id).update(is_passed=True)
+                    prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, "Next step after: " + user_input)
+                    image_url = ai_service.generate_image(prompt)
+                    guide_text = visual_guide_text if visual_guide_text else "很有趣的解读。现在，让我们看看下一张图，它揭示了更深的一层含义..."
+
+                    Interaction.objects.create(
+                        conversation=conversation,
+                        type='ai_image',
+                        image_url=image_url,
+                        image_prompt=prompt,
+                        text_content=guide_text
+                    )
+                    return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
+            else:
+                hint = analysis.get('next_step_hint', '请再仔细看看。')
+                Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=hint)
+                return JsonResponse({'status': 'success', 'answer': hint})
+
+        else:
+            Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content="我不太理解。请试着描述图片与问题的关系。")
+            return JsonResponse({'status': 'success', 'answer': "我不太理解..."})
