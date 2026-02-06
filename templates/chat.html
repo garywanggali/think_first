@@ -326,6 +326,21 @@
                 body: formData
             });
             console.log("Sending message...", text); // Debug
+            
+            // Check for 413 error specifically
+            if (response.status === 413) {
+                hideLoading();
+                alert('图片太大啦！服务器拒绝接收。请上传更小的图片（建议小于10MB）。');
+                return;
+            }
+            
+            // Check for other HTTP errors
+            if (!response.ok) {
+                hideLoading();
+                alert(`服务器开小差了 (HTTP ${response.status})。请稍后再试。`);
+                return;
+            }
+
             const data = await response.json();
             console.log("Response received:", data); // Debug
             
@@ -341,7 +356,7 @@
         } catch (e) {
             hideLoading();
             console.error(e);
-            alert('网络错误');
+            alert('网络错误：无法连接到服务器。');
         }
     }
 
