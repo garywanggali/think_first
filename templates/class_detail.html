@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <div class="mb-8">
+        <a href="{% url 'teacher_dashboard' %}" class="text-slate-500 hover:text-indigo-600 mb-4 inline-flex items-center gap-1 transition">
+            <i class="ph-bold ph-arrow-left"></i> 返回班级列表
+        </a>
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 mb-1">{{ classroom.name }}</h1>
+                <p class="text-slate-500">{{ classroom.description }}</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right">
+                    <div class="text-xs text-slate-500 uppercase tracking-wider font-bold">班级邀请码</div>
+                    <div class="text-2xl font-mono font-bold text-indigo-600 tracking-widest">{{ classroom.code }}</div>
+                </div>
+                <button onclick="navigator.clipboard.writeText('{{ classroom.code }}'); alert('已复制邀请码')" class="p-2 text-slate-400 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 rounded-lg transition" title="复制邀请码">
+                    <i class="ph-bold ph-copy text-xl"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+            <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                <i class="ph-fill ph-student text-indigo-500"></i> 学生学习档案
+            </h3>
+            <span class="text-sm text-slate-500">共 {{ student_stats|length }} 人</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="text-slate-500 border-b border-slate-100 bg-slate-50/50">
+                        <th class="px-6 py-3 font-bold">学生姓名</th>
+                        <th class="px-6 py-3 font-bold">思考对话数</th>
+                        <th class="px-6 py-3 font-bold">最近活跃时间</th>
+                        <th class="px-6 py-3 font-bold">最近探索主题</th>
+                        <th class="px-6 py-3 font-bold text-right">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for stat in student_stats %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                    {{ stat.student.username|slice:":2"|upper }}
+                                </div>
+                                <span class="font-medium text-slate-900">{{ stat.student.username }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 bg-slate-100 rounded-lg font-mono text-xs">{{ stat.conv_count }}</span>
+                        </td>
+                        <td class="px-6 py-4 text-slate-500">
+                            {{ stat.last_active|date:"Y-m-d H:i"|default:"从未活跃" }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                {% for topic in stat.topics %}
+                                <span class="bg-indigo-50 text-indigo-700 border border-indigo-100 px-2 py-0.5 rounded text-xs truncate max-w-[150px]" title="{{ topic }}">
+                                    {{ topic }}
+                                </span>
+                                {% empty %}
+                                <span class="text-slate-300 text-xs italic">暂无记录</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <button class="text-slate-400 hover:text-indigo-600 transition">
+                                <i class="ph-bold ph-caret-right"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-slate-500">
+                            <div class="flex flex-col items-center gap-2">
+                                <i class="ph-duotone ph-users-three text-4xl text-slate-300"></i>
+                                <p>暂无学生加入</p>
+                                <p class="text-xs">将邀请码 <span class="font-mono font-bold">{{ classroom.code }}</span> 分享给学生</p>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

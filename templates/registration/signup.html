@@ -35,6 +35,20 @@
             </div>
             {% endfor %}
 
+            <!-- Role Selection -->
+            <div>
+                <label for="role" class="block text-sm font-medium text-slate-700 mb-1">身份选择</label>
+                <div class="relative">
+                    <select name="role" id="role" class="appearance-none rounded-xl relative block w-full px-3 py-3 border border-slate-300 placeholder-slate-500 text-slate-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="student">我是学生</option>
+                        <option value="teacher">我是老师</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700">
+                        <i class="ph-bold ph-caret-down"></i>
+                    </div>
+                </div>
+            </div>
+
             <div>
                 <button type="submit" class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition shadow-lg shadow-indigo-200">
                     <span class="absolute left-0 inset-y-0 flex items-center pl-3">
