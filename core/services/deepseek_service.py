@@ -100,7 +100,8 @@ class DeepSeekService:
            - Return intent="has_idea".
         3. **User is Explaining/Analyzing**:
            - Action: **EVALUATE**. Check if their understanding is correct.
-           - Return intent="explaining_image".
+           - Return intent="explaining_image" if more visual steps are needed.
+           - Return intent="finish" ONLY if the entire logical chain is complete and user fully understands the final answer.
 
         **CRITICAL STEP: Determine Cognitive Level & Visual Tool (Only if visualizing)**
         1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "How do trees grow?", "History of Rome"):
@@ -115,7 +116,7 @@ class DeepSeekService:
 
         RETURN JSON FORMAT:
         {
-            "intent": "has_idea" | "no_idea" | "explaining_image" | "probe_deeper",
+            "intent": "has_idea" | "no_idea" | "explaining_image" | "probe_deeper" | "finish",
             "tool": "image_generation" | "desmos",
             "desmos_latex": "y=x^2" (only if tool is desmos),
             "evaluation": "pass" | "fail",

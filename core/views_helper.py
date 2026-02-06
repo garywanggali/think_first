@@ -192,63 +192,43 @@ def _handle_chat_response(conversation, user_input, image_file=None):
                 )
                 return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
 
+        elif intent == 'finish':
+            # AI determined that the logical chain is complete
+            conversation.status = 'review'
+            conversation.save()
+            
+            guide_text = "你已经完成了整个视觉探索旅程。现在，请试着用一句话总结：为什么会有石油？（这是最后一步，请给出你的定义）"
+            
+            Interaction.objects.create(
+                conversation=conversation,
+                type='ai_feedback',
+                text_content=guide_text
+            )
+            return JsonResponse({'status': 'success', 'answer': guide_text})
+
         elif intent == 'explaining_image':
             is_pass = analysis.get('evaluation') == 'pass'
             
             if is_pass:
-                pass_count = conversation.interactions.filter(is_passed=True).count()
-                
-                # Update current interaction to passed
-                # Use update instead of save to avoid side effects if any
-                if last_interaction: # Should be user_interpretation
-                     pass # Wait, we just created a new interaction for user_input. We should mark THAT one?
-                     # No, is_passed usually marks the AI's step as passed? Or the user's answer?
-                     # Let's assume we mark the previous AI image as passed.
-                     # But logic above: Interaction.objects.filter(id=conversation.interactions.last().id).update(is_passed=True)
-                     # The last interaction is the one we just created (user input).
-                     # So we are marking the user's input as "passed". Okay.
-                
                 # Mark the current user interaction as passed
                 current_user_interaction = conversation.interactions.last()
                 if current_user_interaction:
                     current_user_interaction.is_passed = True
                     current_user_interaction.save()
 
-                # 判断是否还有下一个逻辑步骤，而不是简单计数
-                # 简单计数会导致还没解释完就被强制结束
-                # 改进逻辑：让 AI 在 analysis 中决定是否结束 (intent="finish"?)
-                # 目前 DeepSeek Prompt 里没有 finish 状态。
-                # 临时方案：增加 pass_count 阈值到 3 或 4，或者让 prompt 决定。
-                
-                # 让我们把阈值提高到 3，确保解释得更充分
-                if pass_count >= 3:
-                    conversation.status = 'review'
-                    # conversation.is_completed = True # Don't mark completed yet, wait for user synthesis
-                    conversation.save()
-                    
-                    # New Logic: Ask user for synthesis instead of auto-summary
-                    guide_text = "你已经完成了整个视觉探索旅程。现在，请试着用一句话总结：为什么会有石油？（这是最后一步，请给出你的定义）"
-                    
-                    Interaction.objects.create(
-                        conversation=conversation,
-                        type='ai_feedback',
-                        text_content=guide_text
-                    )
-                    return JsonResponse({'status': 'success', 'answer': guide_text})
+                # Generate next step image
+                prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, "Next step after: " + user_input)
+                image_url = ai_service.generate_image(prompt)
+                guide_text = visual_guide_text if visual_guide_text else "很有趣的解读。现在，让我们看看下一张图，它揭示了更深的一层含义..."
 
-                else:
-                    prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, "Next step after: " + user_input)
-                    image_url = ai_service.generate_image(prompt)
-                    guide_text = visual_guide_text if visual_guide_text else "很有趣的解读。现在，让我们看看下一张图，它揭示了更深的一层含义..."
-
-                    Interaction.objects.create(
-                        conversation=conversation,
-                        type='ai_image',
-                        image_url=image_url,
-                        image_prompt=prompt,
-                        text_content=guide_text
-                    )
-                    return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
+                Interaction.objects.create(
+                    conversation=conversation,
+                    type='ai_image',
+                    image_url=image_url,
+                    image_prompt=prompt,
+                    text_content=guide_text
+                )
+                return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
             else:
                 hint = analysis.get('next_step_hint', '请再仔细看看。')
                 Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=hint)
