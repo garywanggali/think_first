@@ -198,25 +198,38 @@ def _handle_chat_response(conversation, user_input, image_file=None):
             if is_pass:
                 pass_count = conversation.interactions.filter(is_passed=True).count()
                 
+                # Update current interaction to passed
+                # Use update instead of save to avoid side effects if any
+                if last_interaction: # Should be user_interpretation
+                     pass # Wait, we just created a new interaction for user_input. We should mark THAT one?
+                     # No, is_passed usually marks the AI's step as passed? Or the user's answer?
+                     # Let's assume we mark the previous AI image as passed.
+                     # But logic above: Interaction.objects.filter(id=conversation.interactions.last().id).update(is_passed=True)
+                     # The last interaction is the one we just created (user input).
+                     # So we are marking the user's input as "passed". Okay.
+                
+                # Mark the current user interaction as passed
+                current_user_interaction = conversation.interactions.last()
+                if current_user_interaction:
+                    current_user_interaction.is_passed = True
+                    current_user_interaction.save()
+
                 if pass_count >= 2:
                     conversation.status = 'review'
-                    conversation.is_completed = True
+                    # conversation.is_completed = True # Don't mark completed yet, wait for user synthesis
                     conversation.save()
                     
-                    final_review = {
-                        "summary": "你通过三张图片的联想，成功构建了问题的全貌。",
-                        "thinking_path": [{"stage": "Done", "description": "Completed visual thinking."}],
-                        "advice": "你的视觉联想能力很强。"
-                    }
-                    ThinkingReview.objects.create(
+                    # New Logic: Ask user for synthesis instead of auto-summary
+                    guide_text = "你已经完成了整个视觉探索旅程。现在，请试着用一句话总结：为什么会有石油？（这是最后一步，请给出你的定义）"
+                    
+                    Interaction.objects.create(
                         conversation=conversation,
-                        summary_text=final_review['summary'],
-                        thinking_path_json=final_review['thinking_path'],
-                        advice_text=final_review['advice']
+                        type='ai_feedback',
+                        text_content=guide_text
                     )
-                    return JsonResponse({'status': 'success', 'answer': f"<FINAL_REVIEW>{json.dumps(final_review)}</FINAL_REVIEW>"})
+                    return JsonResponse({'status': 'success', 'answer': guide_text})
+
                 else:
-                    Interaction.objects.filter(id=conversation.interactions.last().id).update(is_passed=True)
                     prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, "Next step after: " + user_input)
                     image_url = ai_service.generate_image(prompt)
                     guide_text = visual_guide_text if visual_guide_text else "很有趣的解读。现在，让我们看看下一张图，它揭示了更深的一层含义..."
@@ -234,6 +247,36 @@ def _handle_chat_response(conversation, user_input, image_file=None):
                 Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=hint)
                 return JsonResponse({'status': 'success', 'answer': hint})
 
-        else:
-            Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content="我不太理解。请试着描述图片与问题的关系。")
-            return JsonResponse({'status': 'success', 'answer': "我不太理解..."})
+    # 4. Review 状态 (Final Synthesis)
+    elif conversation.status == 'review':
+         # User just submitted their synthesis
+         # AI needs to evaluate it and give final closure
+         
+         # Save user's synthesis
+         Interaction.objects.create(
+            conversation=conversation, 
+            type='user_synthesis', 
+            text_content=user_input
+         )
+         
+         final_review = {
+            "summary": "你通过观察与推理，最终得出了结论。",
+            "thinking_path": [{"stage": "Done", "description": "User synthesized the answer."}],
+            "advice": f"你的总结：'{user_input}' 抓住了核心。保持这种观察力。"
+         }
+         
+         conversation.is_completed = True
+         conversation.save()
+         
+         ThinkingReview.objects.create(
+            conversation=conversation,
+            summary_text=final_review['summary'],
+            thinking_path_json=final_review['thinking_path'],
+            advice_text=final_review['advice']
+         )
+         
+         return JsonResponse({'status': 'success', 'answer': f"<FINAL_REVIEW>{json.dumps(final_review)}</FINAL_REVIEW>"})
+         
+    else:
+        Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content="我不太理解。请试着描述图片与问题的关系。")
+        return JsonResponse({'status': 'success', 'answer': "我不太理解..."})
