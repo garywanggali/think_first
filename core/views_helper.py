@@ -138,6 +138,20 @@ def _handle_chat_response(conversation, user_input, image_file=None):
         if uploaded_image_path:
              # Analyze image
              analysis = ai_service.analyze_image_content(uploaded_image_path, user_input)
+             
+             # 判断用户意图：如果是上传题目求助，不要直接返回分析结果，而是进入引导模式
+             # 这里我们把图片分析结果作为 Context 喂给 analyze_user_input
+             
+             # 构造一个特殊的 Context，包含图片分析结果
+             img_context = f"User uploaded an image. AI Analysis of image: {analysis}"
+             
+             # 调用主逻辑进行决策 (Probe vs Visualize vs Verify)
+             # 但为了不破坏现有流程，我们手动构造一个“引导性回复”
+             
+             # 如果 analysis 已经是一个很好的引导性回复（因为我们在 analyze_image_content 的 prompt 里要求了）
+             # 那么直接返回 analysis 即可。
+             # 现在的 analyze_image_content 已经配置为苏格拉底式引导。
+             
              Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=analysis)
              return JsonResponse({'status': 'success', 'answer': analysis})
 
