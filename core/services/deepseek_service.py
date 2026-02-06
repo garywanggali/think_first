@@ -102,6 +102,9 @@ class DeepSeekService:
            - Action: **EVALUATE**. Check if their understanding is correct.
            - Return intent="explaining_image" if more visual steps are needed.
            - Return intent="finish" ONLY if the entire logical chain is complete and user fully understands the final answer.
+        4. **User is Repetitive/Lazy** or **Concept Needs Verification**:
+           - Action: **POP_QUIZ**. Create a fill-in-the-blank quiz to verify understanding.
+           - Return intent="pop_quiz".
 
         **CRITICAL STEP: Determine Cognitive Level & Visual Tool (Only if visualizing)**
         1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "History"):
@@ -121,9 +124,11 @@ class DeepSeekService:
 
         RETURN JSON FORMAT:
         {
-            "intent": "has_idea" | "no_idea" | "explaining_image" | "probe_deeper" | "finish",
-            "tool": "image_generation" | "desmos",
+            "intent": "has_idea" | "no_idea" | "explaining_image" | "probe_deeper" | "finish" | "pop_quiz",
+            "tool": "image_generation" | "desmos" | "quiz",
             "desmos_latex": "y=ax^2+c" (Generate dynamic formulas with parameters a,b,c where possible),
+            "quiz_question": "Fill-in-the-blank question, e.g., 'As slope increases, the line gets _____.'",
+            "quiz_correct_answer": "steep" (The keyword to check against),
             "evaluation": "pass" | "fail",
             "feedback": "Short feedback in Chinese.",
             "next_step_hint": "Hint if failed.",

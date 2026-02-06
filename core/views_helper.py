@@ -177,6 +177,27 @@ def _handle_chat_response(conversation, user_input, image_file=None):
              Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=guide_text)
              return JsonResponse({'status': 'success', 'answer': guide_text})
              
+        elif intent == 'pop_quiz':
+             # AI 决定出一道填空题
+             question = analysis.get('quiz_question', '请填写关键缺失的词汇：___')
+             answer_key = analysis.get('quiz_correct_answer', '')
+             guide_text = visual_guide_text if visual_guide_text else "为了确认你已经掌握了这个概念，请完成下面这道填空题。"
+             
+             # 我们将 Quiz 数据编码为特定的 JSON 格式存入 text_content，或者使用特定前缀
+             # 为了兼容现有前端逻辑，我们将其存为 JSON 字符串，但在前端需要解析
+             # 这里我们使用一个特殊标记 <POP_QUIZ>
+             
+             quiz_data = {
+                 "question": question,
+                 "correct_answer": answer_key
+             }
+             quiz_json = json.dumps(quiz_data)
+             
+             full_content = f"{guide_text}<POP_QUIZ>{quiz_json}</POP_QUIZ>"
+             
+             Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=full_content)
+             return JsonResponse({'status': 'success', 'answer': full_content})
+
         elif intent == 'no_idea' or intent == 'has_idea':
             # 只有 has_idea (或者 no_idea 的特殊情况) 才生图
             # 但根据新逻辑，no_idea 应该被 probe_deeper 捕获。除非模型坚持用 no_idea。

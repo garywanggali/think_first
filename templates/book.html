@@ -381,6 +381,36 @@
                 // Clean final review tags
                 let cleanText = turn.ai.text.replace(/<FINAL_REVIEW>[\s\S]*?<\/FINAL_REVIEW>/g, '');
                 
+                // Check for POP_QUIZ
+                let quizHtml = '';
+                const quizMatch = cleanText.match(/<POP_QUIZ>([\s\S]*?)<\/POP_QUIZ>/);
+                let quizData = null;
+                
+                if (quizMatch) {
+                    try {
+                        quizData = JSON.parse(quizMatch[1]);
+                        cleanText = cleanText.replace(/<POP_QUIZ>[\s\S]*?<\/POP_QUIZ>/g, '');
+                        
+                        // Generate Quiz Card
+                        const quizId = 'quiz-' + Math.random().toString(36).substr(2, 9);
+                        quizHtml = `
+                            <div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-5" id="${quizId}">
+                                <div class="flex items-center gap-2 text-amber-800 font-bold mb-3">
+                                    <i class="ph-fill ph-lightbulb"></i> 小测验：验证你的理解
+                                </div>
+                                <p class="text-amber-900 mb-4 font-medium">${quizData.question}</p>
+                                <div class="flex gap-2">
+                                    <input type="text" id="${quizId}-input" class="flex-1 rounded-lg border-amber-300 focus:border-amber-500 focus:ring-amber-500" placeholder="在此输入答案...">
+                                    <button onclick="checkQuiz('${quizId}', '${quizData.correct_answer}')" class="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 font-medium">提交</button>
+                                </div>
+                                <div id="${quizId}-feedback" class="mt-2 text-sm hidden"></div>
+                            </div>
+                        `;
+                    } catch (e) {
+                        console.error("Quiz parse error", e);
+                    }
+                }
+                
                 aiHtml += `
                     <div class="flex gap-4">
                          <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-white flex-shrink-0 shadow-sm">
@@ -391,6 +421,7 @@
                             <div class="bg-slate-50 border border-slate-100 p-6 rounded-2xl rounded-tl-none text-slate-700 leading-relaxed prose prose-slate max-w-none">
                                 ${turn.ai.image ? `<img src="${turn.ai.image}" class="mb-4 rounded-xl shadow-md border border-slate-200">` : ''}
                                 ${marked.parse(cleanText)}
+                                ${quizHtml}
                             </div>
                         </div>
                     </div>
@@ -505,6 +536,33 @@
                 // Only show skip if we are waiting? No, skip is for user turn.
                 // Actually, skip is useful when user is STUCK at input.
             }
+        }
+    }
+
+    // --- Quiz Logic ---
+    function checkQuiz(quizId, correctAnswer) {
+        const input = document.getElementById(quizId + '-input');
+        const feedback = document.getElementById(quizId + '-feedback');
+        const userAnswer = input.value.trim();
+        
+        if (!userAnswer) return;
+        
+        // Simple fuzzy match (case insensitive, contains key word)
+        // Ideally backend validates, but for "Pop Quiz" simple client side is faster feedback loop
+        if (userAnswer.toLowerCase().includes(correctAnswer.toLowerCase()) || correctAnswer.toLowerCase().includes(userAnswer.toLowerCase())) {
+            feedback.innerHTML = '<span class="text-green-600 font-bold"><i class="ph-bold ph-check"></i> 正确！你已经掌握了这个概念。</span>';
+            feedback.classList.remove('hidden');
+            input.disabled = true;
+            
+            // Unlock next step automatically
+            setTimeout(() => {
+                sendMessageInternal(`我答对了，答案是：${userAnswer}`);
+            }, 1000);
+        } else {
+            feedback.innerHTML = '<span class="text-red-500"><i class="ph-bold ph-x"></i> 不太对哦，再想想？</span>';
+            feedback.classList.remove('hidden');
+            feedback.classList.add('animate-shake');
+            setTimeout(() => feedback.classList.remove('animate-shake'), 500);
         }
     }
 
