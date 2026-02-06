@@ -154,21 +154,26 @@ def _handle_chat_response(conversation, user_input, image_file=None):
         # 状态机处理
         if intent == 'probe_deeper':
              # 用户不知道，需要追问
-             guide_text = visual_guide_text if visual_guide_text else "没关系。试着想象一下，如果我们改变一个条件..."
+             guide_text = visual_guide_text
              
-             # 人性化处理：如果 guide_text 还是默认的硬回复，尝试让 DeepSeek 重新生成或使用更有趣的引导
-             # 但为了简单，我们相信 DeepSeek 的输出。如果 DeepSeek 输出了默认文案，可能是 prompt 问题。
-             # 我们这里做一个兜底，随机化默认回复，让它不那么生硬。
-             import random
-             fallback_responses = [
-                 "没关系，让我们换个角度。想象一下...",
-                 "不用担心，这是一个很难的问题。试着猜猜看...",
-                 "如果没有任何限制，你觉得会是什么样？",
-                 "让我们先忘掉书本上的定义。在你的直觉里，它像什么？"
-             ]
-             if guide_text == "没关系。试着想象一下，如果我们改变一个条件...":
-                 guide_text = random.choice(fallback_responses)
-                 
+             # 如果 guide_text 为空，或者是一个机械的默认回复，我们需要处理
+             # 但更好的策略是：如果 DeepSeek 返回 probe_deeper，它应该已经生成了一个针对性的问题在 visual_guide_text 中
+             # 如果 visual_guide_text 是空的，说明 DeepSeek 没有正确遵循 JSON 格式返回 'visual_guide_text'
+             
+             if not guide_text or guide_text == "没关系。试着想象一下，如果我们改变一个条件...":
+                 # 强制让 DeepSeek 生成一个具体的、针对上下文的引导问题
+                 # 这里我们再次调用 DeepSeek 生成一个简单的文本引导
+                 prompt = f"""
+                 Context: User says "{user_input}" (indicating they don't know).
+                 Current Topic: {conversation.topic}
+                 Task: Ask a simple, intuitive question to help them guess. 
+                 Do NOT say "Never mind" or "Let's imagine". Just ask the question directly.
+                 Example: "What do you think happens if...?"
+                 Language: Chinese.
+                 """
+                 messages = [{"role": "user", "content": prompt}]
+                 guide_text = ai_service.chat_completion(messages)
+
              Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=guide_text)
              return JsonResponse({'status': 'success', 'answer': guide_text})
              
