@@ -432,6 +432,14 @@
                     
                     calculator.setExpression({ latex: desmosLatex });
                     
+                    // Add default sliders if parameters are detected but not set (Desmos usually sets them to 1, but let's be safe)
+                    // Also, we can add some predefined interesting values if we want.
+                    // For now, let's just make sure sliders are visible.
+                    // A trick to force slider creation for a,b,c if they exist in latex:
+                    if (desmosLatex.includes('a')) calculator.setExpression({ id: 'slider_a', latex: 'a=1' });
+                    if (desmosLatex.includes('b')) calculator.setExpression({ id: 'slider_b', latex: 'b=1' });
+                    if (desmosLatex.includes('c')) calculator.setExpression({ id: 'slider_c', latex: 'c=1' });
+                    
                     // Force re-render just in case
                     calculator.resize();
                 }
