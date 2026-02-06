@@ -259,12 +259,22 @@
     // --- Image Upload Logic ---
     function previewImage(input) {
         if (input.files && input.files[0]) {
+            const file = input.files[0];
+            
+            // Client-side size check (e.g., limit to 10MB)
+            const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+            if (file.size > MAX_SIZE) {
+                alert('图片太大啦！请上传小于 10MB 的图片。');
+                input.value = ''; // Clear input
+                return;
+            }
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 document.getElementById('image-preview').src = e.target.result;
                 document.getElementById('image-preview-container').classList.remove('hidden');
             }
-            reader.readAsDataURL(input.files[0]);
+            reader.readAsDataURL(file);
         }
     }
 
