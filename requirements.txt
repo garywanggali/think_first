@@ -1,4 +1,4 @@
-Django==4.2.19
+Django==3.2.25
 openai==1.61.0
 python-dotenv==1.0.1
 requests==2.32.3
