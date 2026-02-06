@@ -104,13 +104,18 @@ class DeepSeekService:
            - Return intent="finish" ONLY if the entire logical chain is complete and user fully understands the final answer.
 
         **CRITICAL STEP: Determine Cognitive Level & Visual Tool (Only if visualizing)**
-        1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "How do trees grow?", "History of Rome"):
+        1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "History"):
            - Tool: **IMAGE_GENERATION** (Flux.1)
-           - Style: **REALISTIC, CINEMATIC, DOCUMENTARY PHOTOGRAPHY**.
-        2. **Math/Functions/Geometry** (e.g., "y=x^2", "Sin wave", "Parabola properties", "Function Monotonicity"):
+           - Style: **REALISTIC, CINEMATIC, DOCUMENTARY**.
+        2. **Math/Functions/Geometry** (e.g., "y=x^2", "Parabola", "Monotonicity"):
            - Tool: **DESMOS_CALCULATOR**
-           - Action: Generate a specific LaTeX formula for Desmos. For concepts like "Monotonicity", provide an illustrative function (e.g. y=x^3 or y=e^x).
-        3. **Academic/Abstract/Logic** (non-math):
+           - Action: Generate a specific LaTeX formula.
+           - **IMPORTANT**: For concepts like "Monotonicity" or "Quadratic", do NOT just give a static formula like "y=x^2".
+           - **USE SLIDERS**: Create EXPLORATORY formulas using parameters (a, b, c).
+           - Example: Instead of "y=x^2", output "y=ax^2+bx+c". Desmos will automatically create sliders for a, b, c.
+           - Example: "y = sin(ax) + b".
+           - Goal: Allow user to manipulate the graph to discover the property.
+        3. **Academic/Abstract/Logic**:
            - Tool: **IMAGE_GENERATION**
            - Style: **MINIMALIST, INFOGRAPHIC**.
 
@@ -118,11 +123,11 @@ class DeepSeekService:
         {
             "intent": "has_idea" | "no_idea" | "explaining_image" | "probe_deeper" | "finish",
             "tool": "image_generation" | "desmos",
-            "desmos_latex": "y=x^2" (only if tool is desmos),
+            "desmos_latex": "y=ax^2+c" (Generate dynamic formulas with parameters a,b,c where possible),
             "evaluation": "pass" | "fail",
             "feedback": "Short feedback in Chinese.",
             "next_step_hint": "Hint if failed.",
-            "visual_prompt": "English prompt for Flux.1 (if tool is image_generation)",
+            "visual_prompt": "English prompt for Flux.1",
             "visual_guide_text": "Chinese guide text."
         }
         """
