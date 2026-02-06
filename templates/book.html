@@ -838,11 +838,45 @@
         }
     }
     
+    // --- Delete Conversation ---
+    async function deleteConversation(id, event) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        if (!confirm('确定要删除这条思考记录吗？')) return;
+        
+        try {
+            const response = await fetch(`/chat/${id}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                if (id == conversationId) {
+                    window.location.href = "{% url 'chat_new' %}";
+                } else {
+                    const btn = event.target.closest('button');
+                    if (btn) {
+                        const group = btn.closest('.group');
+                        if (group) group.remove();
+                    }
+                }
+            } else {
+                alert('删除失败');
+            }
+        } catch(e) {
+            console.error(e);
+            alert('删除出错');
+        }
+    }
+    
     // --- Helpers (Image, Canvas, Voice) ---
     // (Copy existing logic from chat.html but adapted to new IDs)
     
     function handleImageUpload(input) {
-        if (input.files && input.files[0]) {
              const file = input.files[0];
              if (file.size > 10 * 1024 * 1024) {
                 alert('图片太大啦！');
