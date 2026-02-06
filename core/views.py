@@ -49,9 +49,11 @@ def chat_view(request, conversation_id=None):
     
     interactions = conversation.interactions.all().order_by('created_at')
     
+    from django.conf import settings
     return render(request, 'chat.html', {
         'conversation': conversation,
-        'interactions': interactions
+        'interactions': interactions,
+        'desmos_api_key': settings.DESMOS_API_KEY
     })
 
 @login_required

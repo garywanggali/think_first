@@ -143,6 +143,8 @@ DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
 SILICONFLOW_API_KEY = os.getenv('SILICONFLOW_API_KEY')
 OPENROUTER_API_KEY = 'Please_Set_Your_OpenRouter_Key_Here' # Legacy
 
+# Desmos API Key (Default to demo key, but user should override in .env)
+DESMOS_API_KEY = os.getenv('DESMOS_API_KEY', 'd3d74380c29144a48304170c97d10662')
 
 # Auth
 LOGIN_REDIRECT_URL = '/'

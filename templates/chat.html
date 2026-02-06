@@ -5,7 +5,7 @@
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <!-- Desmos API -->
-<script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey=d3d74380c29144a48304170c97d10662"></script>
+<script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey={{ desmos_api_key }}"></script>
 
 <div class="flex h-[calc(100vh-64px)] overflow-hidden">
     <!-- 左侧：历史记录 (可折叠或简化) -->
@@ -361,6 +361,10 @@
             setTimeout(() => {
                 const elt = document.getElementById(calcId);
                 if (elt) {
+                    if (typeof Desmos === 'undefined') {
+                        elt.innerHTML = '<div class="flex items-center justify-center h-full text-red-500 bg-red-50 rounded-lg p-4 text-center"><p>Desmos API 加载失败。<br>请联系管理员配置有效的 DESMOS_API_KEY。</p></div>';
+                        return;
+                    }
                     const calculator = Desmos.GraphingCalculator(elt, {
                         expressions: false,
                         lockViewport: false
