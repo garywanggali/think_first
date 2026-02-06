@@ -101,11 +101,11 @@
 
                 <!-- 文本输入 -->
                 <div id="input-text" class="block">
-                    <div class="flex gap-2">
-                        <textarea id="message-input" rows="3" class="w-full border border-slate-300 rounded-xl p-3 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none" placeholder="输入你的想法..."></textarea>
-                        <button onclick="sendMessage()" class="bg-indigo-600 text-white px-6 rounded-xl hover:bg-indigo-700 transition flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    <div class="relative">
+                        <textarea id="message-input" name="query" rows="1" class="block w-full rounded-full border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pr-12 resize-none py-3 px-4" placeholder="输入你的想法... (Enter发送，Shift+Enter换行)" required style="min-height: 48px; max-height: 150px;"></textarea>
+                        <button onclick="sendMessage()" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
                         </button>
                     </div>
