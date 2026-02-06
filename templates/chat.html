@@ -170,7 +170,10 @@
     chatContainer.scrollTop = chatContainer.scrollHeight;
 
     function switchTab(tab) {
-        document.querySelectorAll('[id^="input-"]').forEach(el => el.classList.add('hidden'));
+        // Fix: Only hide content containers, not the main input-area
+        document.getElementById('input-text').classList.add('hidden');
+        document.getElementById('input-canvas').classList.add('hidden');
+        
         document.querySelectorAll('[id^="tab-"]').forEach(el => {
             el.classList.remove('bg-indigo-100', 'text-indigo-700');
             el.classList.add('text-slate-600', 'hover:bg-slate-100');
@@ -178,8 +181,10 @@
 
         document.getElementById(`input-${tab}`).classList.remove('hidden');
         const btn = document.getElementById(`tab-${tab}`);
-        btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
-        btn.classList.add('bg-indigo-100', 'text-indigo-700');
+        if (btn) {
+            btn.classList.remove('text-slate-600', 'hover:bg-slate-100');
+            btn.classList.add('bg-indigo-100', 'text-indigo-700');
+        }
     }
 
     // --- Drag and Drop Logic ---
@@ -498,8 +503,6 @@
             document.getElementById('voice-text').innerText = '聆听中...';
             document.getElementById('btn-voice').classList.add('bg-red-100', 'text-red-600', 'animate-pulse');
             
-            // 确保切换到文字 Tab，以便用户看到输入过程
-            switchTab('text');
             // 记录当前输入框内容
             const input = document.getElementById('message-input');
             originalText = input.value;
