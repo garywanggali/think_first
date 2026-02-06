@@ -12,6 +12,9 @@ import json
 def index(request):
     return render(request, 'index.html')
 
+def ie_browser(request):
+    return render(request, 'ie_browser.html')
+
 def signup(request):
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
