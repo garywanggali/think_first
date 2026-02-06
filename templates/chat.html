@@ -264,7 +264,7 @@
             // Client-side size check (e.g., limit to 10MB)
             const MAX_SIZE = 10 * 1024 * 1024; // 10MB
             if (file.size > MAX_SIZE) {
-                alert('图片太大啦！请上传小于 10MB 的图片。');
+                alert('图片太大啦！');
                 input.value = ''; // Clear input
                 return;
             }
@@ -418,10 +418,22 @@
                         return;
                     }
                     const calculator = Desmos.GraphingCalculator(elt, {
-                        expressions: false,
-                        lockViewport: false
+                        expressions: true,  // Allow seeing expressions and sliders
+                        lockViewport: false,
+                        settingsMenu: false, // Hide settings menu to keep it clean
+                        expressionsCollapsed: false
                     });
+                    
+                    // Set expression (if it contains parameters like y=ax^2+b, Desmos handles it)
+                    // We need to make sure 'latex' is set correctly.
+                    // If latex is just "y=ax^2+b", we might need to add sliders manually if Desmos doesn't auto-create them via API.
+                    // Actually, Desmos API setExpression with latex usually auto-adds sliders if variables are undefined.
+                    // Let's try setting it directly.
+                    
                     calculator.setExpression({ latex: desmosLatex });
+                    
+                    // Force re-render just in case
+                    calculator.resize();
                 }
             }, 100);
         }
