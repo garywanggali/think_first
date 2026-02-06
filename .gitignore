@@ -15,3 +15,8 @@ staticfiles/
 
 # OS
 .DS_Store
+
+# Virtual Environment
+venv/
+env/
+

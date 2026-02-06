@@ -133,10 +133,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # DeepSeek API Key
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
 
-# xAI (Grok) API Key
-XAI_API_KEY = os.getenv('XAI_API_KEY')
-
-# SiliconFlow API Key (Legacy)
+# SiliconFlow API Key
 SILICONFLOW_API_KEY = os.getenv('SILICONFLOW_API_KEY')
 OPENROUTER_API_KEY = 'Please_Set_Your_OpenRouter_Key_Here' # Legacy
 

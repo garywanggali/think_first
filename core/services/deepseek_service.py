@@ -33,55 +33,49 @@ class DeepSeekService:
 
     def generate_image(self, prompt):
         """
-        调用 xAI (Grok) 生成图片
+        调用 SiliconFlow 生成图片 (Flux.1 Schnell)
         """
         import requests
-        print(f"DEBUG: Generating image via xAI (Grok) with prompt: {prompt[:50]}...")
+        print(f"DEBUG: Generating image via SiliconFlow with prompt: {prompt[:50]}...")
         
-        xai_key = getattr(settings, 'XAI_API_KEY', '')
-        if not xai_key or 'Please_Set' in xai_key:
-            print("ERROR: xAI API Key not set.")
-            return "https://placehold.co/1024x1024/png?text=xAI+Key+Missing"
+        silicon_key = getattr(settings, 'SILICONFLOW_API_KEY', '')
+        if not silicon_key or 'Please_Set' in silicon_key:
+            print("ERROR: SiliconFlow API Key not set.")
+            return "https://placehold.co/1024x1024/png?text=API+Key+Missing"
 
         try:
-            url = "https://api.x.ai/v1/images/generations"
-            headers = {
-                "Authorization": f"Bearer {xai_key}",
-                "Content-Type": "application/json"
-            }
-            # xAI 使用标准的 OpenAI 格式
-            # model: "grok-beta" (作为通用模型ID) 或者 "grok-imagine-image"
-            payload = {
-                "model": "grok-beta", 
-                "prompt": prompt,
-                "n": 1,
-                "size": "1024x1024",
-                "response_format": "url"
-            }
-            
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+                url = "https://api.siliconflow.cn/v1/images/generations"
+                headers = {
+                    "Authorization": f"Bearer {silicon_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": "black-forest-labs/FLUX.1-dev", # 切换到 Dev 版，质量更好
+                    "prompt": prompt,
+                    "image_size": "1024x1024",
+                    "num_inference_steps": 20 # Dev 版推荐 20-50 步
+                }
+                
+                response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
             
-            # OpenAI 兼容格式: {"data": [{"url": "..."}]}
-            if 'data' in data and len(data['data']) > 0:
-                original_image_url = data['data'][0]['url']
-                print(f"DEBUG: Image generated via xAI: {original_image_url}")
-                
-                # 下载并保存到本地
-                local_image_url = save_image_from_url(original_image_url)
-                
-                if local_image_url:
-                    print(f"DEBUG: Image saved locally: {local_image_url}")
-                    return local_image_url
-                else:
-                    return original_image_url
+            # SiliconFlow 返回格式: {"data": [{"url": "..."}]}
+            original_image_url = data['data'][0]['url']
+            print(f"DEBUG: Image generated via SiliconFlow: {original_image_url}")
+            
+            # 下载并保存到本地，防止链接过期
+            local_image_url = save_image_from_url(original_image_url)
+            
+            if local_image_url:
+                print(f"DEBUG: Image saved locally: {local_image_url}")
+                return local_image_url
             else:
-                print(f"ERROR: xAI response missing data: {data}")
-                return "https://placehold.co/1024x1024/png?text=Grok+Error"
-                
+                print("WARNING: Failed to save image locally, returning original URL")
+                return original_image_url
+            
         except Exception as e:
-            print(f"ERROR: xAI Image Gen Error: {e}")
+            print(f"ERROR: SiliconFlow Image Gen Error: {e}")
             if 'response' in locals():
                 print(f"Response: {response.text}")
             return "https://placehold.co/1024x1024/png?text=Image+Error"
