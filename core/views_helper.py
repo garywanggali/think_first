@@ -214,7 +214,14 @@ def _handle_chat_response(conversation, user_input, image_file=None):
                     current_user_interaction.is_passed = True
                     current_user_interaction.save()
 
-                if pass_count >= 2:
+                # 判断是否还有下一个逻辑步骤，而不是简单计数
+                # 简单计数会导致还没解释完就被强制结束
+                # 改进逻辑：让 AI 在 analysis 中决定是否结束 (intent="finish"?)
+                # 目前 DeepSeek Prompt 里没有 finish 状态。
+                # 临时方案：增加 pass_count 阈值到 3 或 4，或者让 prompt 决定。
+                
+                # 让我们把阈值提高到 3，确保解释得更充分
+                if pass_count >= 3:
                     conversation.status = 'review'
                     # conversation.is_completed = True # Don't mark completed yet, wait for user synthesis
                     conversation.save()
