@@ -1,37 +1,38 @@
 import json
 import urllib.parse
 from django.conf import settings
-from openai import OpenAI
+import openai
 from core.utils import save_image_from_url
 
 class DeepSeekService:
     def __init__(self):
         self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', '')
-        # DeepSeek 兼容 OpenAI SDK
-        self.client = OpenAI(
-            api_key=self.api_key,
-            base_url="https://api.deepseek.com"
-        )
-        self.llm_model = "deepseek-chat" # DeepSeek-V3
+        # OpenAI 0.x 不使用 client 实例，而是设置全局变量或在调用时传参
+        # 但为了线程安全，我们建议在每次调用时传入 api_key 和 api_base
+        self.api_base = "https://api.deepseek.com"
 
     def chat_completion(self, messages, json_mode=False):
         """
-        调用 DeepSeek LLM
+        调用 DeepSeek V3 (使用 OpenAI 0.x SDK)
         """
-        print(f"DEBUG: Calling DeepSeek with model {self.llm_model}...")
+        if not self.api_key or 'Please_Set' in self.api_key:
+            return "Error: DeepSeek API Key not configured."
+        
         try:
-            response = self.client.chat.completions.create(
-                model=self.llm_model,
+            # 0.x 写法：openai.ChatCompletion.create
+            # 必须显式指定 api_key 和 api_base
+            response = openai.ChatCompletion.create(
+                model="deepseek-chat",
                 messages=messages,
-                response_format={"type": "json_object"} if json_mode else None,
-                temperature=1.3 # DeepSeek 建议 V3 使用较高的 temperature 以激发创造力
+                temperature=1.3,
+                api_key=self.api_key,
+                api_base=self.api_base,
+                # 0.x 不支持 response_format 参数，json_mode 只能靠 Prompt 约束
             )
-            content = response.choices[0].message.content
-            print(f"DEBUG: DeepSeek Response: {content[:100]}...")
-            return content
+            return response.choices[0].message.content
         except Exception as e:
-            print(f"ERROR: DeepSeek API Error: {e}")
-            return None
+            print(f"DeepSeek API Error: {e}")
+            return f"Error: {str(e)}"
 
     def generate_image(self, prompt):
         """
