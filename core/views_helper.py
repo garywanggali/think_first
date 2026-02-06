@@ -155,6 +155,20 @@ def _handle_chat_response(conversation, user_input, image_file=None):
         if intent == 'probe_deeper':
              # 用户不知道，需要追问
              guide_text = visual_guide_text if visual_guide_text else "没关系。试着想象一下，如果我们改变一个条件..."
+             
+             # 人性化处理：如果 guide_text 还是默认的硬回复，尝试让 DeepSeek 重新生成或使用更有趣的引导
+             # 但为了简单，我们相信 DeepSeek 的输出。如果 DeepSeek 输出了默认文案，可能是 prompt 问题。
+             # 我们这里做一个兜底，随机化默认回复，让它不那么生硬。
+             import random
+             fallback_responses = [
+                 "没关系，让我们换个角度。想象一下...",
+                 "不用担心，这是一个很难的问题。试着猜猜看...",
+                 "如果没有任何限制，你觉得会是什么样？",
+                 "让我们先忘掉书本上的定义。在你的直觉里，它像什么？"
+             ]
+             if guide_text == "没关系。试着想象一下，如果我们改变一个条件...":
+                 guide_text = random.choice(fallback_responses)
+                 
              Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=guide_text)
              return JsonResponse({'status': 'success', 'answer': guide_text})
              
