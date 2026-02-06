@@ -877,6 +877,7 @@
     // (Copy existing logic from chat.html but adapted to new IDs)
     
     function handleImageUpload(input) {
+        if (input.files && input.files[0]) {
              const file = input.files[0];
              if (file.size > 10 * 1024 * 1024) {
                 alert('图片太大啦！');
