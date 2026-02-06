@@ -92,7 +92,22 @@
 
                 <!-- 最终报告页 -->
                 <div id="page-final" class="book-page hidden flex-col h-full animate-fade-in">
-                    <div id="final-review-content"></div>
+                     <div class="mt-8 mb-12 flex flex-col items-center justify-center h-full">
+                        <div class="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-3xl border border-indigo-100 w-full max-w-2xl shadow-sm">
+                            <h2 class="text-2xl font-bold text-indigo-900 mb-6 flex items-center gap-2 justify-center">
+                                <i class="ph-fill ph-confetti text-3xl text-indigo-600"></i>
+                                <span>思考旅程回顾</span>
+                            </h2>
+                            
+                            <div id="final-review-content" class="mb-8">
+                                <!-- Dynamic content -->
+                            </div>
+                            
+                            <div class="text-center">
+                                <a href="{% url 'index' %}" class="inline-block px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition">完成思考</a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
             </div>
@@ -105,6 +120,11 @@
                     <button onclick="prevPage()" class="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition px-4 py-2 rounded-lg hover:bg-slate-200">
                         <i class="ph-bold ph-arrow-left"></i> 上一页
                     </button>
+                    
+                    <button onclick="skipPage()" id="btn-skip" class="hidden flex items-center gap-2 text-slate-400 hover:text-slate-600 transition text-sm">
+                         跳过此步 <i class="ph-bold ph-fast-forward"></i>
+                    </button>
+
                     <button onclick="nextPage()" class="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition px-4 py-2 rounded-lg hover:bg-slate-200">
                         下一页 <i class="ph-bold ph-arrow-right"></i>
                     </button>
@@ -143,6 +163,13 @@
                         <!-- 发送按钮 -->
                         <button onclick="submitMessage()" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg transform active:scale-95">
                             <i class="ph-bold ph-paper-plane-right"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Skip Option for Input -->
+                    <div class="text-center mt-3">
+                         <button onclick="skipPage()" class="text-xs text-slate-400 hover:text-indigo-500 transition flex items-center gap-1 mx-auto">
+                            <i class="ph-bold ph-fast-forward"></i> 跳过此步 (不知道/没思路)
                         </button>
                     </div>
                     
@@ -413,27 +440,42 @@
         }
     }
     
+    // --- Skip Logic ---
+    function skipPage() {
+        if (!confirm('确定要跳过这一步吗？AI 将自动为你生成一个过渡回复。')) return;
+        
+        // Mock skipping: Send a "skip" signal
+        sendMessageInternal("我不知道，请直接告诉我下一步");
+    }
+
     function toggleInputArea(show) {
         const inputDiv = document.getElementById('input-controls');
         const navDiv = document.getElementById('nav-controls');
+        const skipBtn = document.getElementById('btn-skip');
         
         if (show) {
             inputDiv.classList.remove('hidden');
             inputDiv.classList.add('block');
-            navDiv.classList.add('hidden'); // Hide nav when inputting (focus mode)
-            // Or maybe keep nav? Let's hide for focus.
-            if (currentPage < totalPages) {
-                 // If browsing history, show nav instead of input
-                 inputDiv.classList.add('hidden');
-                 navDiv.classList.remove('hidden');
-                 navDiv.classList.add('flex');
-            }
+            navDiv.classList.add('hidden'); 
+            navDiv.classList.remove('flex');
+            
+            // In input mode, we can show Skip button somewhere if we want,
+            // but usually skip is an alternative to input.
+            // Let's add a small "Skip" link near input area instead of nav bar?
+            // Or use the nav bar slot for it?
+            
+            // For now, let's keep it simple.
         } else {
             inputDiv.classList.add('hidden');
+            inputDiv.classList.remove('block');
+            
             // If history exists, show nav
             if (totalPages > 0) {
                 navDiv.classList.remove('hidden');
                 navDiv.classList.add('flex');
+                
+                // Only show skip if we are waiting? No, skip is for user turn.
+                // Actually, skip is useful when user is STUCK at input.
             }
         }
     }
