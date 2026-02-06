@@ -348,53 +348,35 @@ def _handle_chat_response(conversation, user_input, image_file=None):
 def _handle_relativity_demo(conversation, user_input, is_start, uploaded_image_url):
     """
     Hardcoded script for "General Relativity for Babies" style demo.
-    Ensures a perfect, predictable flow for presentation.
+    Refined for maximum "Anti-AI Addiction" philosophy: Socratic, Visual, Insight-driven.
     """
     
-    # Define the Script Stages
-    # Each stage matches a specific user input pattern or sequence index
-    # But since user input varies, we better track by interaction count
-    
-    # 0. Start (Triggered by "引力" etc.)
-    # 1. User: "球" -> AI: "这是球"
-    # 2. User: "质量" -> AI: "球有质量"
-    # ...
-    
-    # Since we can't control user input perfectly, we'll guide them or just ignore input and advance script
-    # Strategy: "Ignorant Script" - advance one step regardless of input, but adapt text slightly.
-    
     step = conversation.interactions.filter(type__in=['ai_feedback', 'ai_image']).count()
+    ai_service = DeepSeekService()
     
     # Initialize Demo
     if is_start:
         conversation.topic = "[DEMO] Relativity"
-        conversation.status = 'visual_loop' # Fake status to keep UI happy
+        conversation.status = 'visual_loop' 
         conversation.save()
         
         # Save user question
         Interaction.objects.create(conversation=conversation, type='question', text_content=user_input)
         
-        # Step 1: Initial Probe (Scripted)
-        answer = "这真是一个深刻的问题。关于引力，你的直觉是什么？"
+        # Step 0: The Hook
+        answer = "我们忘掉那些复杂的公式。想象我们要从零开始构建一个宇宙。准备好了吗？"
         Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=answer)
         return JsonResponse({'status': 'success', 'answer': answer})
 
     # Save user input for current step
     Interaction.objects.create(conversation=conversation, type='user_interpretation', text_content=user_input, image_url=uploaded_image_url)
 
-    # Script Steps (0-indexed based on AI replies so far)
-    # We just added 1 reply (Initial Probe), so count is 1. Next is Step 2.
+    # Script Steps
     
-    # Hardcoded Images (Using Flux.1 generated URLs or Placeholders for now)
-    # Ideally, we should generate these ONCE and cache them, or generate on fly.
-    # For a stable demo, let's use prompt to generate them on fly (SiliconFlow is fast).
-    
-    ai_service = DeepSeekService()
-    
-    if step == 1: # User replied to "What is your intuition?"
-        # Step 2: Show "This is a ball"
-        prompt = "Minimalist vector art, white background. A single red ball in the center. Flat 2D style. Children's book illustration."
-        text = "让我们从最简单的开始。看这张图，这是一个球。"
+    if step == 1: 
+        # Step 1: The Void (Inertia)
+        prompt = "Minimalist abstract art. An infinite, perfectly flat white grid lines on light gray background. 2D plane. Nothing else. Clean, scientific style."
+        text = "第一步：这是宇宙的初始状态，一片绝对平坦、空无一物的空间。\n\n**提问**：如果在这个绝对平坦的表面上，你向前方滚出一颗弹珠，它会怎么运动？会停下来，还是永远走直线？"
         
         image_url = ai_service.generate_image(prompt)
         
@@ -404,10 +386,10 @@ def _handle_relativity_demo(conversation, user_input, is_start, uploaded_image_u
         )
         return JsonResponse({'status': 'success', 'answer': text, 'image_url': image_url})
 
-    elif step == 2: # User: "Okay, it's a ball"
-        # Step 3: "This ball has mass"
-        prompt = "Minimalist vector art, white background. A red ball sitting on a flat 2D grid (spacetime). The grid is perfectly flat. Label 'Mass' near the ball."
-        text = "这个球有质量。想象它静止在这个平坦的网格上。"
+    elif step == 2: 
+        # Step 2: The Mass (Curvature)
+        prompt = "Minimalist 3D render. A heavy, dark matte sphere sitting in the center of a white grid. The grid lines bend and sink deeply underneath the sphere's weight, creating a funnel shape or gravity well. High contrast."
+        text = "现在，我们在中心放入一个极重的星球（比如太阳）。\n\n**观察**：请仔细看它周围的网格。发生了什么变化？那个原本平坦的舞台现在变得怎么样了？"
         
         image_url = ai_service.generate_image(prompt)
         
@@ -417,10 +399,10 @@ def _handle_relativity_demo(conversation, user_input, is_start, uploaded_image_u
         )
         return JsonResponse({'status': 'success', 'answer': text, 'image_url': image_url})
 
-    elif step == 3: # User: "And then?"
-        # Step 4: "Mass bends space"
-        prompt = "Minimalist vector art, white background. The red ball is heavy, causing the 2D grid to curve and dip downwards around it. Spacetime curvature visual."
-        text = "关键来了。质量会做什么？它会弯曲周围的空间。看，网格不再是平的了，它凹下去了。"
+    elif step == 3: 
+        # Step 3: The Interaction (Gravity as Geometry)
+        prompt = "Minimalist physics diagram. Top-down view. A large central mass distorting the grid. A small marble is rolling past it. The path of the marble curves towards the center, following the bent grid lines. Dashed line showing the path."
+        text = "关键时刻来了。现在有一颗小行星飞过。它本想继续走直线，但地面已经塌陷了。\n\n**思考**：它的路径看起来会是怎样的？看起来像是被太阳‘吸’过去了吗？还是它只是在顺着弯路走？"
         
         image_url = ai_service.generate_image(prompt)
         
@@ -430,29 +412,16 @@ def _handle_relativity_demo(conversation, user_input, is_start, uploaded_image_u
         )
         return JsonResponse({'status': 'success', 'answer': text, 'image_url': image_url})
 
-    elif step == 4: # User: "So?"
-        # Step 5: "Small ball falls in"
-        prompt = "Minimalist vector art, white background. Physics diagram. A heavy red ball sits in the center of a distorted grid that curves downwards like a funnel. A small blue ball is rolling along the curved slope. A dashed curved arrow clearly shows the blue ball's path spiraling towards the red ball, demonstrating gravity."
-        text = "现在，如果有一个更小的球经过，会发生什么？它不会走直线，而是会顺着这个弯曲滚向大球。"
-        
-        image_url = ai_service.generate_image(prompt)
-        
-        Interaction.objects.create(
-            conversation=conversation, type='ai_image', 
-            image_url=image_url, image_prompt=prompt, text_content=text
-        )
-        return JsonResponse({'status': 'success', 'answer': text, 'image_url': image_url})
-
-    elif step == 5: # User: "I see!"
-        # Step 6: Verify & Conclusion
-        guide_text = "没错。这种‘掉进弯曲空间’的现象，就是我们所说的..."
+    elif step == 4: 
+        # Step 4: The Epiphany (Conclusion Challenge)
+        guide_text = "没错。这就是爱因斯坦的洞见：根本没有看不见的‘拉力’。小行星只是在弯曲的空间里试图走直线而已。"
         
         challenge_payload = {
             "type": "fill_in_the_blank",
             "data": {
-                "question": "这就是 ___ 。",
-                "correct_answer": "引力",
-                "hint": "两个字，万有..."
+                "question": "引力的本质不是力，而是 ___ 的弯曲。",
+                "correct_answer": "时空",
+                "hint": "时间和空间..."
             }
         }
         
@@ -471,13 +440,13 @@ def _handle_relativity_demo(conversation, user_input, is_start, uploaded_image_u
         
     else:
         # Finish
-        guide_text = "你已经掌握了广义相对论的核心：物质告诉空间如何弯曲，空间告诉物质如何运动。"
+        guide_text = "你已经掌握了广义相对论的核心：**物质告诉时空如何弯曲，时空告诉物质如何运动**。\n\n这就是为什么我们不再需要‘引力’这个概念，我们只需要几何学。"
         
         # Mark completed
         final_review = {
-            "summary": "通过球与网格的模型，你理解了引力的本质是时空弯曲。",
+            "summary": "通过构建空间模型，你领悟了引力即几何。",
             "thinking_path": [{"stage": "Done", "description": "Relativity Demo Completed"}],
-            "advice": "保持好奇心，继续探索宇宙的奥秘。"
+            "advice": "下次看到苹果落地，试着想象一下空间本身的滑梯。"
         }
         conversation.is_completed = True
         conversation.save()
