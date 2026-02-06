@@ -484,6 +484,7 @@
     // --- Voice Input Logic ---
     let recognition;
     let isRecording = false;
+    let originalText = '';
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -499,6 +500,9 @@
             
             // 确保切换到文字 Tab，以便用户看到输入过程
             switchTab('text');
+            // 记录当前输入框内容
+            const input = document.getElementById('message-input');
+            originalText = input.value;
         };
 
         recognition.onend = () => {
@@ -515,7 +519,7 @@
             
             // 将结果实时填入输入框
             const input = document.getElementById('message-input');
-            input.value = transcript;
+            input.value = originalText + transcript;
             
             // 自动调整高度
             input.style.height = 'auto';
