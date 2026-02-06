@@ -53,7 +53,8 @@ def chat_view(request, conversation_id=None):
     interactions = conversation.interactions.all().order_by('created_at')
     
     from django.conf import settings
-    return render(request, 'chat.html', {
+    # 切换到新的书籍 UI 模板
+    return render(request, 'book.html', {
         'conversation': conversation,
         'interactions': interactions,
         'desmos_api_key': settings.DESMOS_API_KEY

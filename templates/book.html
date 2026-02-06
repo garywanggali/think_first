@@ -1,0 +1,705 @@
+{% extends 'base.html' %}
+
+{% block footer %}{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- Desmos API -->
+<script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey={{ desmos_api_key }}"></script>
+
+<div class="flex h-[calc(100vh-64px)] bg-slate-100 overflow-hidden relative">
+    
+    <!-- 左侧：历史记录 (仅在大屏显示) -->
+    <div class="w-64 bg-white border-r border-slate-200 hidden lg:flex flex-col z-10 shadow-sm">
+        <div class="p-4 border-b border-slate-200 flex justify-between items-center">
+            <h2 class="font-bold text-slate-700">思考记录</h2>
+            <a href="{% url 'chat_new' %}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center gap-1">
+                <i class="ph-bold ph-plus"></i> 新思考
+            </a>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-2">
+            {% for c in user.conversations.all %}
+                <div class="group flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition {% if c.id == conversation.id %}bg-indigo-50 border border-indigo-100{% endif %}">
+                    <a href="{% url 'chat_detail' c.id %}" class="block flex-1 text-sm text-slate-600 truncate {% if c.id == conversation.id %}font-medium text-indigo-700{% endif %}">
+                        {{ c.topic|default:"新思考..." }}
+                        <div class="text-xs text-slate-400 mt-1">{{ c.created_at|date:"m-d H:i" }}</div>
+                    </a>
+                    <button onclick="deleteConversation({{ c.id }}, event)" class="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-red-500 transition">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 中间：书籍容器 -->
+    <div class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 relative">
+        
+        <!-- 书籍卡片 -->
+        <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-500 ease-in-out relative h-[85vh]" id="book-container">
+            
+            <!-- 页眉：进度与状态 -->
+            <div class="h-14 border-b border-slate-100 flex items-center justify-between px-6 bg-white/80 backdrop-blur-sm z-20">
+                <div class="flex items-center gap-2 text-slate-500 text-sm">
+                    <i class="ph-fill ph-book-bookmark text-indigo-500"></i>
+                    <span id="page-indicator">第 1 页</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="thinking-status" class="hidden text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full animate-pulse">
+                        思考中...
+                    </span>
+                </div>
+            </div>
+
+            <!-- 书页内容区 (Scrollable) -->
+            <div class="flex-1 overflow-y-auto p-8 md:p-12 scroll-smooth relative" id="book-content">
+                
+                <!-- 欢迎页 (Page 0) -->
+                <div id="page-welcome" class="book-page active flex flex-col justify-center items-center h-full text-center space-y-6 animate-fade-in">
+                    <div class="w-24 h-24 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 mb-4 shadow-inner">
+                        <i class="ph-duotone ph-brain text-5xl"></i>
+                    </div>
+                    <h1 class="text-3xl font-bold text-slate-800">开始一次深度思考</h1>
+                    <p class="text-slate-600 max-w-md mx-auto leading-relaxed">
+                        在这个快节奏的时代，慢下来是种奢侈。<br>
+                        我不会直接给你答案，但我会陪你一起找到它。
+                    </p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mt-8 w-full max-w-2xl">
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <i class="ph-fill ph-prohibit text-red-400 text-xl mb-2"></i>
+                            <h3 class="font-bold text-slate-700 text-sm">拒绝直给</h3>
+                            <p class="text-xs text-slate-500 mt-1">没有标准答案，只有思维线索。</p>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <i class="ph-fill ph-eye text-indigo-400 text-xl mb-2"></i>
+                            <h3 class="font-bold text-slate-700 text-sm">视觉引导</h3>
+                            <p class="text-xs text-slate-500 mt-1">用图像和模型激发你的直觉。</p>
+                        </div>
+                        <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                            <i class="ph-fill ph-pencil-simple text-amber-400 text-xl mb-2"></i>
+                            <h3 class="font-bold text-slate-700 text-sm">主动构建</h3>
+                            <p class="text-xs text-slate-500 mt-1">结论必须由你自己写下。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 动态生成的对话页 (Pages 1...N) -->
+                <!-- 结构：每页包含 [用户提问] + [AI反馈] -->
+                <div id="dynamic-pages">
+                    <!-- JS will populate this -->
+                </div>
+
+                <!-- 最终报告页 -->
+                <div id="page-final" class="book-page hidden flex-col h-full animate-fade-in">
+                    <div id="final-review-content"></div>
+                </div>
+
+            </div>
+
+            <!-- 页脚：交互区 -->
+            <div class="border-t border-slate-100 bg-slate-50 p-6 z-20 transition-all duration-300" id="interaction-area">
+                
+                <!-- 导航按钮 (仅在浏览历史时显示) -->
+                <div id="nav-controls" class="hidden justify-between items-center w-full">
+                    <button onclick="prevPage()" class="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition px-4 py-2 rounded-lg hover:bg-slate-200">
+                        <i class="ph-bold ph-arrow-left"></i> 上一页
+                    </button>
+                    <button onclick="nextPage()" class="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition px-4 py-2 rounded-lg hover:bg-slate-200">
+                        下一页 <i class="ph-bold ph-arrow-right"></i>
+                    </button>
+                </div>
+
+                <!-- 输入框 (仅在最新页显示) -->
+                <div id="input-controls" class="w-full max-w-2xl mx-auto transition-all">
+                    
+                    <!-- 工具栏 Tab -->
+                    <div class="flex justify-center gap-4 mb-4">
+                        <button onclick="switchInputMode('text')" id="mode-text" class="text-sm font-medium text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full transition-colors">
+                            <i class="ph-bold ph-text-t"></i> 文字
+                        </button>
+                        <button onclick="switchInputMode('canvas')" id="mode-canvas" class="text-sm font-medium text-slate-500 hover:bg-slate-200 px-3 py-1 rounded-full transition-colors">
+                            <i class="ph-bold ph-pencil-simple"></i> 画板
+                        </button>
+                        <button onclick="toggleVoice()" id="mode-voice" class="text-sm font-medium text-slate-500 hover:bg-slate-200 px-3 py-1 rounded-full transition-colors flex items-center gap-1">
+                            <i class="ph-bold ph-microphone"></i> <span id="voice-label">语音</span>
+                        </button>
+                    </div>
+
+                    <!-- 文字输入 -->
+                    <div id="input-wrapper-text" class="relative">
+                        <textarea id="message-input" rows="1" 
+                            class="block w-full rounded-2xl border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pr-14 pl-4 py-4 resize-none transition-all" 
+                            placeholder="写下你的想法..." 
+                            style="min-height: 56px; max-height: 150px;"
+                            onkeydown="handleKeydown(event)"></textarea>
+                        
+                        <!-- 上传图片按钮 -->
+                        <button onclick="document.getElementById('image-upload').click()" class="absolute right-12 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+                            <i class="ph-bold ph-image text-xl"></i>
+                        </button>
+                        <input type="file" id="image-upload" class="hidden" accept="image/*" onchange="handleImageUpload(this)">
+
+                        <!-- 发送按钮 -->
+                        <button onclick="submitMessage()" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-md hover:shadow-lg transform active:scale-95">
+                            <i class="ph-bold ph-paper-plane-right"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- 图片预览 -->
+                    <div id="image-preview-wrapper" class="hidden mt-2 relative inline-block">
+                        <img id="image-preview" class="h-16 w-16 object-cover rounded-lg border border-slate-200 shadow-sm">
+                        <button onclick="clearImage()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-sm">
+                            <i class="ph-bold ph-x text-xs"></i>
+                        </button>
+                    </div>
+
+                    <!-- 画板输入 -->
+                    <div id="input-wrapper-canvas" class="hidden bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-inner">
+                        <canvas id="drawing-board" class="w-full bg-white cursor-crosshair touch-none" height="200"></canvas>
+                        <div class="bg-slate-50 p-2 flex justify-between items-center border-t border-slate-200">
+                            <button onclick="clearCanvas()" class="text-red-500 text-xs font-medium hover:text-red-700 px-2">清空</button>
+                            <button onclick="submitCanvas()" class="bg-indigo-600 text-white text-xs px-4 py-2 rounded-lg hover:bg-indigo-700 shadow-sm">发送草图</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 书页切换动画 */
+    .book-page {
+        display: none;
+        width: 100%;
+        min-height: 100%;
+        flex-direction: column;
+    }
+    .book-page.active {
+        display: flex;
+        animation: fadeInPage 0.5s ease-out forwards;
+    }
+    @keyframes fadeInPage {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* 隐藏滚动条但保留功能 */
+    #book-content::-webkit-scrollbar {
+        width: 6px;
+    }
+    #book-content::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    #book-content::-webkit-scrollbar-thumb {
+        background-color: #e2e8f0;
+        border-radius: 20px;
+    }
+</style>
+
+<script>
+    // --- State Management ---
+    const conversationId = "{{ conversation.id }}";
+    let historyData = []; // To store chat history
+    let currentPage = 0; // 0 = Welcome, 1+ = Conversation turns
+    let totalPages = 0;
+    let isWaiting = false;
+
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Load initial data from template (interactions)
+        const rawInteractions = [
+            {% for i in interactions %}
+            {
+                type: "{{ i.type }}",
+                text: `{{ i.text_content|escapejs }}`,
+                image: "{{ i.image_url|default:'' }}",
+                id: {{ i.id }}
+            },
+            {% endfor %}
+        ];
+        
+        processHistory(rawInteractions);
+        renderPage(currentPage);
+        resizeCanvas();
+    });
+
+    // --- Book Logic ---
+    
+    function processHistory(raw) {
+        // 将线性交互流转换为“回合制”页面数据
+        // 规则：一个 Page = [User Message] + [AI Feedback]
+        // Welcome page is Page 0
+        
+        historyData = [];
+        let currentTurn = { user: null, ai: null };
+        
+        raw.forEach(item => {
+            if (['question', 'probe_answer', 'user_interpretation'].includes(item.type)) {
+                // 如果已经有 user 消息但没有 ai 消息（连续发送），先把之前的存起来（虽然不应该发生）
+                if (currentTurn.user && !currentTurn.ai) {
+                    // Just overwrite for now or handle multiple user msgs
+                }
+                // 如果是一个新的回合开始（已有完整回合），推入历史
+                if (currentTurn.user && currentTurn.ai) {
+                    historyData.push(currentTurn);
+                    currentTurn = { user: null, ai: null };
+                }
+                currentTurn.user = item;
+            } else if (['ai_feedback', 'ai_image'].includes(item.type)) {
+                if (!currentTurn.user) {
+                    // AI 先说话？（除了欢迎语不应该发生）
+                    // 也可以作为一个独立回合
+                    currentTurn.user = { text: "..." }; // Placeholder
+                }
+                currentTurn.ai = item;
+                // 完成一个回合
+                historyData.push(currentTurn);
+                currentTurn = { user: null, ai: null };
+            }
+        });
+        
+        // 处理最后一个未闭合的回合
+        if (currentTurn.user) {
+            historyData.push(currentTurn);
+        }
+
+        // Page 0 is Welcome
+        // Page 1..N are history turns
+        totalPages = historyData.length; 
+        
+        // 如果有历史记录，默认跳到最后一页
+        if (totalPages > 0) {
+            currentPage = totalPages;
+        } else {
+            currentPage = 0;
+        }
+        
+        updatePagination();
+    }
+
+    function renderPage(pageIdx) {
+        // Hide all pages
+        document.querySelectorAll('.book-page').forEach(el => el.classList.remove('active'));
+        document.getElementById('dynamic-pages').innerHTML = ''; // Clear dynamic container
+        
+        if (pageIdx === 0 && totalPages === 0) {
+            document.getElementById('page-welcome').classList.add('active');
+            toggleInputArea(true);
+        } else if (pageIdx > 0 && pageIdx <= totalPages) {
+            // Render specific turn
+            const turn = historyData[pageIdx - 1];
+            const pageDiv = document.createElement('div');
+            pageDiv.className = 'book-page active space-y-8 animate-fade-in';
+            
+            // User Section (Top)
+            let userHtml = '';
+            if (turn.user) {
+                userHtml = `
+                    <div class="flex gap-4">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0 shadow-sm border border-indigo-50">
+                            <i class="ph-bold ph-user text-xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm text-slate-400 mb-1 font-medium">你的思考</div>
+                            <div class="bg-white border border-slate-100 p-5 rounded-2xl rounded-tl-none shadow-sm text-slate-700 text-lg leading-relaxed">
+                                ${turn.user.image ? `<img src="${turn.user.image}" class="mb-3 rounded-lg max-h-48 border border-slate-100">` : ''}
+                                ${marked.parse(turn.user.text || '')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // AI Section (Bottom)
+            let aiHtml = '';
+            if (turn.ai) {
+                // Check for Desmos
+                // For MVP, we assume Desmos latex is embedded in text or we need to parse it?
+                // The backend API returns separate field, but history template loop didn't save it separately in 'interactions'.
+                // We might need to regex parse it if it was saved in text, or rely on future improvements.
+                // For now, let's just render text and image.
+                
+                // Clean final review tags
+                let cleanText = turn.ai.text.replace(/<FINAL_REVIEW>[\s\S]*?<\/FINAL_REVIEW>/g, '');
+                
+                aiHtml = `
+                    <div class="flex gap-4">
+                         <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-white flex-shrink-0 shadow-sm">
+                            <i class="ph-fill ph-robot text-xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm text-slate-400 mb-1 font-medium">导师反馈</div>
+                            <div class="bg-slate-50 border border-slate-100 p-6 rounded-2xl rounded-tl-none text-slate-700 leading-relaxed prose prose-slate max-w-none">
+                                ${turn.ai.image ? `<img src="${turn.ai.image}" class="mb-4 rounded-xl shadow-md border border-slate-200">` : ''}
+                                ${marked.parse(cleanText)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (isWaiting && pageIdx === totalPages) {
+                 // Loading state for current latest page
+                 aiHtml = `
+                    <div class="flex gap-4 opacity-50">
+                         <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-white flex-shrink-0">
+                            <i class="ph-fill ph-robot text-xl"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm text-slate-400 mb-1">思考中...</div>
+                            <div class="bg-slate-50 p-6 rounded-2xl rounded-tl-none typing-indicator">
+                                <span>.</span><span>.</span><span>.</span>
+                            </div>
+                        </div>
+                    </div>
+                 `;
+            }
+
+            pageDiv.innerHTML = userHtml + aiHtml;
+            document.getElementById('dynamic-pages').appendChild(pageDiv);
+            
+            // Logic for Input visibility
+            // If it's the last page AND AI has replied (turn complete), show input for NEXT turn
+            // If it's the last page AND AI is missing (waiting), hide input
+            // If it's history page (not last), hide input, show nav
+            
+            if (pageIdx === totalPages && turn.ai && !isWaiting) {
+                toggleInputArea(true); // Ready for next input
+            } else {
+                toggleInputArea(false); // Read only or waiting
+            }
+        }
+        
+        updatePagination();
+    }
+
+    function updatePagination() {
+        const indicator = document.getElementById('page-indicator');
+        if (totalPages === 0) {
+            indicator.innerText = "序章";
+        } else {
+            indicator.innerText = `第 ${currentPage} / ${totalPages} 页`;
+        }
+        
+        // Nav buttons visibility
+        const nav = document.getElementById('nav-controls');
+        const input = document.getElementById('input-controls');
+        
+        // Logic: 
+        // Always show Nav if totalPages > 1
+        // Input is hidden if we are browsing history (currentPage < totalPages)
+        
+        if (currentPage < totalPages || (currentPage > 0 && !isWaiting)) {
+             // We can navigate back if > 1
+             // We can navigate forward if < totalPages
+        }
+    }
+
+    function nextPage() {
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderPage(currentPage);
+        }
+    }
+
+    function prevPage() {
+        if (currentPage > 1) {
+            currentPage--;
+            renderPage(currentPage);
+        } else if (currentPage === 1) {
+             // Go to welcome? Maybe not necessary once started.
+        }
+    }
+    
+    function toggleInputArea(show) {
+        const inputDiv = document.getElementById('input-controls');
+        const navDiv = document.getElementById('nav-controls');
+        
+        if (show) {
+            inputDiv.classList.remove('hidden');
+            inputDiv.classList.add('block');
+            navDiv.classList.add('hidden'); // Hide nav when inputting (focus mode)
+            // Or maybe keep nav? Let's hide for focus.
+            if (currentPage < totalPages) {
+                 // If browsing history, show nav instead of input
+                 inputDiv.classList.add('hidden');
+                 navDiv.classList.remove('hidden');
+                 navDiv.classList.add('flex');
+            }
+        } else {
+            inputDiv.classList.add('hidden');
+            // If history exists, show nav
+            if (totalPages > 0) {
+                navDiv.classList.remove('hidden');
+                navDiv.classList.add('flex');
+            }
+        }
+    }
+
+    // --- Input Handling ---
+
+    function switchInputMode(mode) {
+        // Reset styles
+        ['text', 'canvas', 'voice'].forEach(m => {
+            const btn = document.getElementById(`mode-${m}`);
+            btn.classList.remove('bg-indigo-100', 'text-indigo-600');
+            btn.classList.add('text-slate-500', 'hover:bg-slate-200');
+        });
+        
+        // Active style
+        const activeBtn = document.getElementById(`mode-${mode}`);
+        activeBtn.classList.remove('text-slate-500', 'hover:bg-slate-200');
+        activeBtn.classList.add('bg-indigo-100', 'text-indigo-600');
+        
+        // Show/Hide containers
+        if (mode === 'text' || mode === 'voice') {
+            document.getElementById('input-wrapper-text').classList.remove('hidden');
+            document.getElementById('input-wrapper-canvas').classList.add('hidden');
+        } else if (mode === 'canvas') {
+            document.getElementById('input-wrapper-text').classList.add('hidden');
+            document.getElementById('input-wrapper-canvas').classList.remove('hidden');
+            resizeCanvas();
+        }
+    }
+    
+    async function submitMessage() {
+        const input = document.getElementById('message-input');
+        const fileInput = document.getElementById('image-upload');
+        const text = input.value.trim();
+        const file = fileInput.files[0];
+
+        if (file && file.size > 10 * 1024 * 1024) {
+            alert('图片太大啦！请上传小于 10MB 的图片。');
+            return;
+        }
+        if (!text && !file) return;
+
+        // 1. Add new turn to history immediately for optimistic UI
+        let imageUrl = null;
+        if (file) imageUrl = URL.createObjectURL(file);
+        
+        const newTurn = {
+            user: { text: text, image: imageUrl },
+            ai: null // Waiting
+        };
+        historyData.push(newTurn);
+        totalPages++;
+        currentPage = totalPages;
+        
+        // 2. Render Waiting State
+        isWaiting = true;
+        renderPage(currentPage);
+        
+        // 3. Clear Inputs
+        input.value = '';
+        clearImage();
+        
+        // 4. Send API
+        try {
+            const formData = new FormData();
+            formData.append('conversation_id', conversationId);
+            formData.append('query', text);
+            if (file) formData.append('image', file);
+            
+            // Show status
+            document.getElementById('thinking-status').classList.remove('hidden');
+
+            const response = await fetch('{% url "api_send_message" %}', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) throw new Error(response.status);
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update history with AI response
+                historyData[totalPages - 1].ai = {
+                    text: data.answer,
+                    image: data.image_url,
+                    desmos: data.desmos_latex
+                };
+                isWaiting = false;
+                document.getElementById('thinking-status').classList.add('hidden');
+                renderPage(currentPage);
+                
+                // Final review check
+                if (data.answer.includes('<FINAL_REVIEW>')) {
+                    // Navigate to final page? 
+                    // Or just render it in the AI bubble?
+                    // Let's render in bubble for now as configured in renderPage
+                }
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (e) {
+            alert("发送失败: " + e.message);
+            isWaiting = false;
+            // Remove the failed turn? Or show error state?
+            // For MVP: keep user msg, leave AI empty or show error
+            historyData.pop(); 
+            totalPages--;
+            currentPage = totalPages;
+            renderPage(currentPage);
+        }
+    }
+
+    function handleKeydown(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            submitMessage();
+        }
+    }
+    
+    // --- Helpers (Image, Canvas, Voice) ---
+    // (Copy existing logic from chat.html but adapted to new IDs)
+    
+    function handleImageUpload(input) {
+        if (input.files && input.files[0]) {
+             const file = input.files[0];
+             if (file.size > 10 * 1024 * 1024) {
+                alert('图片太大啦！');
+                input.value = '';
+                return;
+            }
+            document.getElementById('image-preview').src = URL.createObjectURL(file);
+            document.getElementById('image-preview-wrapper').classList.remove('hidden');
+        }
+    }
+    
+    function clearImage() {
+        document.getElementById('image-upload').value = '';
+        document.getElementById('image-preview-wrapper').classList.add('hidden');
+    }
+
+    // Canvas
+    const canvas = document.getElementById('drawing-board');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let lastX = 0, lastY = 0;
+    
+    function resizeCanvas() {
+        const parent = canvas.parentElement;
+        if (parent) {
+             canvas.width = parent.clientWidth;
+             canvas.height = 200; // Fixed height
+        }
+    }
+    
+    canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+    canvas.addEventListener('mousemove', (e) => {
+        if (!isDrawing) return;
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.strokeStyle = '#4f46e5';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+    
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    
+    function submitCanvas() {
+        const dataURL = canvas.toDataURL();
+        // Create a blob/file from dataURL for upload simulation
+        // For MVP, just send text trigger
+        // Reusing submitMessage logic is tricky because we need to switch input modes.
+        // Let's manually trigger history push
+        
+        const newTurn = {
+            user: { text: "[手绘草图]", image: dataURL },
+            ai: null
+        };
+        historyData.push(newTurn);
+        totalPages++;
+        currentPage = totalPages;
+        isWaiting = true;
+        renderPage(currentPage);
+        clearCanvas();
+        switchInputMode('text'); // Reset to text
+        
+        // Send API (Mocking text trigger)
+         sendMessageInternal("[用户上传了一张思维草图，请基于此进行分析]");
+    }
+    
+    async function sendMessageInternal(text) {
+        // Reuse logic... (omitted for brevity, similar to submitMessage)
+        // ...
+        // Need to duplicate fetch logic or refactor.
+        // For quick implementation:
+        try {
+            document.getElementById('thinking-status').classList.remove('hidden');
+            const response = await fetch('{% url "api_send_message" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conversation_id: conversationId, query: text })
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                historyData[totalPages - 1].ai = {
+                    text: data.answer,
+                    image: data.image_url,
+                    desmos: data.desmos_latex
+                };
+                isWaiting = false;
+                document.getElementById('thinking-status').classList.add('hidden');
+                renderPage(currentPage);
+            }
+        } catch(e) {
+            console.error(e);
+            isWaiting = false;
+        }
+    }
+    
+    // Voice
+    let voiceRec;
+    let isVoiceOn = false;
+    
+    function toggleVoice() {
+        if (!('webkitSpeechRecognition' in window)) {
+            alert("浏览器不支持语音");
+            return;
+        }
+        
+        if (isVoiceOn) {
+            voiceRec.stop();
+            isVoiceOn = false;
+            document.getElementById('voice-label').innerText = "语音";
+            document.getElementById('mode-voice').classList.remove('bg-red-100', 'text-red-600', 'animate-pulse');
+        } else {
+            voiceRec = new webkitSpeechRecognition();
+            voiceRec.lang = 'zh-CN';
+            voiceRec.continuous = true;
+            voiceRec.interimResults = true;
+            
+            voiceRec.onstart = () => {
+                isVoiceOn = true;
+                document.getElementById('voice-label').innerText = "聆听中...";
+                document.getElementById('mode-voice').classList.add('bg-red-100', 'text-red-600', 'animate-pulse');
+                switchInputMode('text');
+            };
+            
+            voiceRec.onresult = (event) => {
+                 const transcript = Array.from(event.results)
+                .map(result => result[0])
+                .map(result => result.transcript)
+                .join('');
+                document.getElementById('message-input').value = transcript;
+            };
+            
+            voiceRec.start();
+        }
+    }
+
+</script>
+{% endblock %}
