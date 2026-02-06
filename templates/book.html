@@ -465,6 +465,7 @@
                 if (challengeMatch) {
                     try {
                         challengeData = JSON.parse(challengeMatch[1]);
+                        // Remove the raw challenge JSON from text
                         cleanText = cleanText.replace(/<CHALLENGE>[\s\S]*?<\/CHALLENGE>/, '');
                     } catch(e) { console.error("Challenge parse error", e); }
                 }
@@ -472,6 +473,18 @@
                 // If challenge data is in turn.ai object directly (from live API response)
                 if (!challengeData && turn.ai.challenge) {
                     challengeData = turn.ai.challenge;
+                }
+                
+                // Also check if text content has the tag even if turn.ai.text is used
+                // This handles the case where we reload page and data is in text
+                if (!challengeData && turn.ai.text) {
+                     const match = turn.ai.text.match(/<CHALLENGE>([\s\S]*?)<\/CHALLENGE>/);
+                     if (match) {
+                        try {
+                            challengeData = JSON.parse(match[1]);
+                            cleanText = turn.ai.text.replace(/<CHALLENGE>[\s\S]*?<\/CHALLENGE>/, '');
+                        } catch(e) {}
+                     }
                 }
 
                 aiHtml += `
