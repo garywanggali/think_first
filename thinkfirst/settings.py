@@ -32,6 +32,12 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['110.40.153.38', 'localhost', '127.0.0.1', 'thinkfirst.yunguhs.com']
 
+# CSRF Trusted Origins
+CSRF_TRUSTED_ORIGINS = [
+    'https://thinkfirst.yunguhs.com',
+    'http://thinkfirst.yunguhs.com',
+]
+
 
 # Application definition
 
