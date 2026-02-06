@@ -291,6 +291,13 @@
         const text = input.value.trim();
         const file = fileInput.files[0];
         
+        // Final size check before sending
+        if (file && file.size > 10 * 1024 * 1024) {
+            alert('图片太大啦！请上传小于 10MB 的图片。');
+            clearImagePreview();
+            return;
+        }
+        
         if (!text && !file) return;
 
         // UI Update
