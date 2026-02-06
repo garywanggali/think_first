@@ -110,7 +110,10 @@
                 <div class="flex gap-2 mb-2">
                     <button onclick="switchTab('text')" id="tab-text" class="px-3 py-1 text-sm rounded-full bg-indigo-100 text-indigo-700 font-medium">文字</button>
                     <button onclick="switchTab('canvas')" id="tab-canvas" class="px-3 py-1 text-sm rounded-full hover:bg-slate-100 text-slate-600">画板</button>
-                    <!-- <button onclick="switchTab('audio')" id="tab-audio" class="px-3 py-1 text-sm rounded-full hover:bg-slate-100 text-slate-600">语音</button> -->
+                    <button onclick="toggleRecording()" id="btn-voice" class="px-3 py-1 text-sm rounded-full hover:bg-slate-100 text-slate-600 flex items-center gap-1">
+                        <i class="ph ph-microphone"></i>
+                        <span id="voice-text">语音</span>
+                    </button>
                 </div>
 
                 <!-- 文本输入 -->
@@ -475,6 +478,71 @@
             chatContainer.scrollTop = chatContainer.scrollHeight;
         } catch (e) {
             console.error("Parse review failed", e);
+        }
+    }
+
+    // --- Voice Input Logic ---
+    let recognition;
+    let isRecording = false;
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'zh-CN';
+        recognition.continuous = false;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+            isRecording = true;
+            document.getElementById('voice-text').innerText = '聆听中...';
+            document.getElementById('btn-voice').classList.add('bg-red-100', 'text-red-600', 'animate-pulse');
+        };
+
+        recognition.onend = () => {
+            isRecording = false;
+            document.getElementById('voice-text').innerText = '语音';
+            document.getElementById('btn-voice').classList.remove('bg-red-100', 'text-red-600', 'animate-pulse');
+        };
+
+        recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+                .map(result => result[0])
+                .map(result => result.transcript)
+                .join('');
+            
+            // 将结果实时填入输入框
+            const input = document.getElementById('message-input');
+            input.value = transcript;
+            
+            // 自动调整高度
+            input.style.height = 'auto';
+            input.style.height = (input.scrollHeight) + 'px';
+        };
+        
+        recognition.onerror = (event) => {
+             console.error("Speech recognition error", event.error);
+             isRecording = false;
+             document.getElementById('voice-text').innerText = '语音';
+             document.getElementById('btn-voice').classList.remove('bg-red-100', 'text-red-600', 'animate-pulse');
+             alert("语音识别出错: " + event.error);
+        };
+    } else {
+        document.getElementById('btn-voice').style.display = 'none';
+        console.warn("Browser does not support Speech API");
+    }
+
+    function toggleRecording() {
+        if (!recognition) {
+            alert("您的浏览器不支持语音输入");
+            return;
+        }
+
+        if (isRecording) {
+            recognition.stop();
+        } else {
+            // 切换到文字 Tab 确保能看到输入结果
+            switchTab('text');
+            recognition.start();
         }
     }
 
