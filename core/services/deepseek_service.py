@@ -91,6 +91,14 @@ class DeepSeekService:
         
         Analyze the user's input and context to determine the Next Visual Scene.
         
+        **CRITICAL STEP: Determine Cognitive Level & Visual Style**
+        1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "How do trees grow?"):
+           - Style: **REALISTIC, CINEMATIC, DOCUMENTARY PHOTOGRAPHY**.
+           - Goal: Evoke wonder and observation of the physical world.
+        2. **Academic/Abstract/Exam/Logic** (e.g., "Explain Quantum Entanglement", "Geometry Proof", "History of WWI"):
+           - Style: **MINIMALIST, SCHEMATIC, BLUEPRINT, INFOGRAPHIC, ABSTRACT CONCEPTUAL ART, HIGH-END MAGAZINE ILLUSTRATION**.
+           - Goal: Visualize relationships, structures, and abstract concepts clearly. Professional and clean.
+
         Logic:
         1. If user just started (intent="has_idea" or "no_idea"): 
            - Generate the **FIRST stage/origin** of the answer. (e.g., for Oil: Ancient prehistoric forest).
@@ -103,8 +111,9 @@ class DeepSeekService:
             "evaluation": "pass" | "fail" (only if explaining_image),
             "feedback": "Short feedback in Chinese. Confirm what they saw and bridge to the next scene.",
             "next_step_hint": "Hint if failed, in Chinese",
-            "visual_prompt": "Generate a CINEMATIC, HIGHLY DETAILED, AWARD-WINNING DOCUMENTARY PHOTOGRAPHY STYLE English prompt for the scene. Focus on the physical process. IMPORTANT: Do NOT include any text, logos, watermarks, or yellow borders.",
-            "visual_guide_text": "A short, engaging Chinese guide for the user. Ask them to observe specific details in the generated scene and think about their meaning. Do NOT reveal the scientific answer directly. e.g. 'Look at the layers accumulating at the bottom... what do you think they are composed of?'"
+            "visual_style": "REALISTIC" | "ACADEMIC",
+            "visual_prompt": "Generate an English prompt based on the determined Visual Style. If REALISTIC: 'Cinematic, highly detailed...'. If ACADEMIC: 'Minimalist vector art, schematic blueprint, exploded view, clean lines, white background, high contrast...'. Do NOT include text/logos.",
+            "visual_guide_text": "A short, engaging Chinese guide for the user. Ask them to observe specific details in the generated scene and think about their meaning. Do NOT reveal the scientific answer directly."
         }
         """
         messages = [
@@ -130,9 +139,12 @@ class DeepSeekService:
         system_prompt = """
         You are a Visual Thinking Expert. Convert the abstract logic into a concrete, metaphorical visual scene.
         
-        OUTPUT ONLY THE VISUAL DESCRIPTION PROMPT IN ENGLISH. NO OTHER TEXT.
+        **Determine the Subject Matter & Style:**
+        - **Nature/Real Life:** Use "Cinematic, Photorealistic, National Geographic Style".
+        - **Academic/Abstract/Logic/Math:** Use "Minimalist, Schematic, Blueprint, Infographic, Vector Art, Clean Lines, High Concept".
         
-        Style: Surrealist, Minimalist, Metaphorical. High quality, 8k resolution.
+        OUTPUT ONLY THE VISUAL DESCRIPTION PROMPT IN ENGLISH. NO OTHER TEXT.
+        Style should be consistent with the subject matter.
         """
         messages = [
             {"role": "system", "content": system_prompt},
