@@ -1,35 +1,42 @@
 import json
 import urllib.parse
 from django.conf import settings
-import openai
+import requests
 from core.utils import save_image_from_url
 
 class DeepSeekService:
     def __init__(self):
         self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', '')
-        # OpenAI 0.x 不使用 client 实例，而是设置全局变量或在调用时传参
-        # 但为了线程安全，我们建议在每次调用时传入 api_key 和 api_base
-        self.api_base = "https://api.deepseek.com"
+        self.api_base = "https://api.deepseek.com/chat/completions"
 
     def chat_completion(self, messages, json_mode=False):
         """
-        调用 DeepSeek V3 (使用 OpenAI 0.x SDK)
+        调用 DeepSeek V3 (使用原生 requests，无需 openai sdk)
         """
         if not self.api_key or 'Please_Set' in self.api_key:
             return "Error: DeepSeek API Key not configured."
         
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        payload = {
+            "model": "deepseek-chat",
+            "messages": messages,
+            "temperature": 1.3,
+            "stream": False
+        }
+        
+        # 如果需要 JSON 模式，DeepSeek V3 支持 response_format
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+
         try:
-            # 0.x 写法：openai.ChatCompletion.create
-            # 必须显式指定 api_key 和 api_base
-            response = openai.ChatCompletion.create(
-                model="deepseek-chat",
-                messages=messages,
-                temperature=1.3,
-                api_key=self.api_key,
-                api_base=self.api_base,
-                # 0.x 不支持 response_format 参数，json_mode 只能靠 Prompt 约束
-            )
-            return response.choices[0].message.content
+            response = requests.post(self.api_base, headers=headers, json=payload, timeout=60)
+            response.raise_for_status()
+            data = response.json()
+            return data['choices'][0]['message']['content']
         except Exception as e:
             print(f"DeepSeek API Error: {e}")
             return f"Error: {str(e)}"

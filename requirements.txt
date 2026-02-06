@@ -1,5 +1,4 @@
 Django==3.2.25
-openai==0.28.1
 python-dotenv==1.0.1
 requests==2.27.1
 urllib3==1.26.18
