@@ -11,12 +11,12 @@ import json
 
 def index(request):
     if request.user.is_authenticated:
-        try:
+        # 使用 hasattr 避免处理 DoesNotExist 异常的复杂性
+        if hasattr(request.user, 'profile'):
             profile = request.user.profile
             if profile.role == 'teacher':
                 return redirect('teacher_dashboard')
-            # else student, fall through to index (or student dashboard)
-        except UserProfile.DoesNotExist:
+        else:
             # Create default profile if missing
             UserProfile.objects.create(user=request.user, role='student')
     
