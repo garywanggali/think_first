@@ -817,7 +817,8 @@
                 historyData[totalPages - 1].ai = {
                     text: data.answer,
                     image: data.image_url,
-                    desmos: data.desmos_latex
+                    desmos: data.desmos_latex,
+                    challenge: data.challenge
                 };
                 isWaiting = false;
                 document.getElementById('thinking-status').classList.add('hidden');
@@ -982,7 +983,8 @@
                 historyData[totalPages - 1].ai = {
                     text: data.answer,
                     image: data.image_url,
-                    desmos: data.desmos_latex
+                    desmos: data.desmos_latex,
+                    challenge: data.challenge
                 };
                 isWaiting = false;
                 document.getElementById('thinking-status').classList.add('hidden');
