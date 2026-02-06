@@ -125,8 +125,10 @@ STATICFILES_DIRS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# AI Configuration
-DEEPSEEK_API_KEY = 'sk-da8357aa19f548e2a2193859dcf95b5e'
+# DeepSeek API Key
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+
+# SiliconFlow API Key
 SILICONFLOW_API_KEY = os.getenv('SILICONFLOW_API_KEY')
 OPENROUTER_API_KEY = 'Please_Set_Your_OpenRouter_Key_Here' # Legacy
 
