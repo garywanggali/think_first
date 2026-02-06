@@ -496,6 +496,9 @@
             isRecording = true;
             document.getElementById('voice-text').innerText = '聆听中...';
             document.getElementById('btn-voice').classList.add('bg-red-100', 'text-red-600', 'animate-pulse');
+            
+            // 确保切换到文字 Tab，以便用户看到输入过程
+            switchTab('text');
         };
 
         recognition.onend = () => {
@@ -524,7 +527,7 @@
              isRecording = false;
              document.getElementById('voice-text').innerText = '语音';
              document.getElementById('btn-voice').classList.remove('bg-red-100', 'text-red-600', 'animate-pulse');
-             alert("语音识别出错: " + event.error);
+             // alert("语音识别出错: " + event.error); // 忽略一些常见的错误如 'no-speech'
         };
     } else {
         document.getElementById('btn-voice').style.display = 'none';
@@ -540,9 +543,15 @@
         if (isRecording) {
             recognition.stop();
         } else {
-            // 切换到文字 Tab 确保能看到输入结果
+            // 开始录音时，确保切回文本输入界面
             switchTab('text');
-            recognition.start();
+            
+            // 启动识别
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error("Start error:", e);
+            }
         }
     }
 
