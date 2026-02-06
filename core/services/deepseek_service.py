@@ -91,29 +91,27 @@ class DeepSeekService:
         
         Analyze the user's input and context to determine the Next Visual Scene.
         
-        **CRITICAL STEP: Determine Cognitive Level & Visual Style**
-        1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "How do trees grow?"):
+        **CRITICAL STEP: Determine Cognitive Level & Visual Tool**
+        1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "How do trees grow?", "History of Rome"):
+           - Tool: **IMAGE_GENERATION** (Flux.1)
            - Style: **REALISTIC, CINEMATIC, DOCUMENTARY PHOTOGRAPHY**.
-           - Goal: Evoke wonder and observation of the physical world.
-        2. **Academic/Abstract/Exam/Logic** (e.g., "Explain Quantum Entanglement", "Geometry Proof", "History of WWI"):
-           - Style: **MINIMALIST, SCHEMATIC, BLUEPRINT, INFOGRAPHIC, ABSTRACT CONCEPTUAL ART, HIGH-END MAGAZINE ILLUSTRATION**.
-           - Goal: Visualize relationships, structures, and abstract concepts clearly. Professional and clean.
+        2. **Math/Functions/Geometry** (e.g., "y=x^2", "Sin wave", "Parabola properties"):
+           - Tool: **DESMOS_CALCULATOR**
+           - Action: Generate a specific LaTeX formula for Desmos.
+        3. **Academic/Abstract/Logic** (non-math):
+           - Tool: **IMAGE_GENERATION**
+           - Style: **MINIMALIST, INFOGRAPHIC**.
 
-        Logic:
-        1. If user just started (intent="has_idea" or "no_idea"): 
-           - Generate the **FIRST stage/origin** of the answer. (e.g., for Oil: Ancient prehistoric forest).
-        2. If user is explaining the previous image (intent="explaining_image") and evaluation is "pass":
-           - Generate the **NEXT stage** of the process. (e.g., for Oil: Layers of sediment covering dead plants).
-        
         RETURN JSON FORMAT:
         {
             "intent": "has_idea" | "no_idea" | "explaining_image",
-            "evaluation": "pass" | "fail" (only if explaining_image),
-            "feedback": "Short feedback in Chinese. Confirm what they saw and bridge to the next scene.",
-            "next_step_hint": "Hint if failed, in Chinese",
-            "visual_style": "REALISTIC" | "ACADEMIC",
-            "visual_prompt": "Generate an English prompt based on the determined Visual Style. If REALISTIC: 'Cinematic, highly detailed...'. If ACADEMIC: 'Minimalist vector art, schematic blueprint, exploded view, clean lines, white background, high contrast...'. Do NOT include text/logos.",
-            "visual_guide_text": "A short, engaging Chinese guide for the user. Ask them to observe specific details in the generated scene and think about their meaning. Do NOT reveal the scientific answer directly."
+            "tool": "image_generation" | "desmos",
+            "desmos_latex": "y=x^2" (only if tool is desmos),
+            "evaluation": "pass" | "fail",
+            "feedback": "Short feedback in Chinese.",
+            "next_step_hint": "Hint if failed.",
+            "visual_prompt": "English prompt for Flux.1 (if tool is image_generation)",
+            "visual_guide_text": "Chinese guide text."
         }
         """
         messages = [

@@ -125,20 +125,52 @@ def _handle_chat_response(conversation, user_input, image_file=None):
         feedback = analysis.get('feedback', '')
         visual_prompt = analysis.get('visual_prompt')
         visual_guide_text = analysis.get('visual_guide_text')
+        tool = analysis.get('tool', 'image_generation')
+
+        # 记录用户输入
+        user_interaction_type = 'probe_answer' if last_interaction and last_interaction.type == 'ai_feedback' else 'user_interpretation'
+        Interaction.objects.create(
+            conversation=conversation, 
+            type=user_interaction_type, 
+            text_content=user_input,
+            image_url=uploaded_image_url
+        )
+
+        if uploaded_image_path:
+             # Analyze image
+             analysis = ai_service.analyze_image_content(uploaded_image_path, user_input)
+             Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=analysis)
+             return JsonResponse({'status': 'success', 'answer': analysis})
 
         if intent == 'no_idea' or intent == 'has_idea':
-            prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, user_input if intent == 'has_idea' else "Concept of " + conversation.topic)
-            image_url = ai_service.generate_image(prompt)
-            guide_text = visual_guide_text if visual_guide_text else "这是一张为你生成的视觉线索图。请仔细观察它，你看到了什么？这与你的问题有什么联系？"
+            if tool == 'desmos':
+                latex = analysis.get('desmos_latex', '')
+                guide_text = visual_guide_text if visual_guide_text else "这是一个数学函数图像，试着调整参数看看会发生什么？"
+                
+                Interaction.objects.create(
+                    conversation=conversation,
+                    type='ai_image',
+                    text_content=guide_text,
+                    image_prompt=f"DESMOS: {latex}"
+                )
+                return JsonResponse({
+                    'status': 'success', 
+                    'answer': guide_text, 
+                    'desmos_latex': latex
+                })
+            else:
+                prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, user_input if intent == 'has_idea' else "Concept of " + conversation.topic)
+                image_url = ai_service.generate_image(prompt)
+                guide_text = visual_guide_text if visual_guide_text else "这是一张为你生成的视觉线索图。请仔细观察它，你看到了什么？这与你的问题有什么联系？"
 
-            Interaction.objects.create(
-                conversation=conversation,
-                type='ai_image',
-                image_url=image_url,
-                image_prompt=prompt,
-                text_content=guide_text
-            )
-            return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
+                Interaction.objects.create(
+                    conversation=conversation,
+                    type='ai_image',
+                    image_url=image_url,
+                    image_prompt=prompt,
+                    text_content=guide_text
+                )
+                return JsonResponse({'status': 'success', 'answer': guide_text, 'image_url': image_url})
 
         elif intent == 'explaining_image':
             is_pass = analysis.get('evaluation') == 'pass'
