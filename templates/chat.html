@@ -392,7 +392,7 @@
             <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 flex-shrink-0">
                 <i class="ph-fill ph-robot text-2xl"></i>
             </div>
-            <div class="bg-slate-100 p-4 rounded-2xl rounded-tl-none max-w-2xl w-full">
+            <div class="bg-slate-100 p-4 rounded-2xl rounded-tl-none max-w-2xl">
                 ${contentHtml}
             </div>
         `;
@@ -503,6 +503,8 @@
             document.getElementById('voice-text').innerText = '聆听中...';
             document.getElementById('btn-voice').classList.add('bg-red-100', 'text-red-600', 'animate-pulse');
             
+            // 确保切换到文字 Tab，以便用户看到输入过程
+            switchTab('text');
             // 记录当前输入框内容
             const input = document.getElementById('message-input');
             originalText = input.value;
