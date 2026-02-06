@@ -100,14 +100,22 @@ def _handle_chat_response(conversation, user_input, image_file=None):
     elif conversation.status == 'visual_loop':
         last_interaction = conversation.interactions.last()
         
-        # 记录用户输入
+        # 记录用户输入 (Unified here, removed duplicate creates below)
         user_interaction_type = 'probe_answer' if last_interaction and last_interaction.type == 'ai_feedback' else 'user_interpretation'
-        Interaction.objects.create(
-            conversation=conversation, 
-            type=user_interaction_type, 
-            text_content=user_input,
-            image_url=uploaded_image_url
-        )
+        
+        # Avoid creating duplicate interaction if the function is called recursively or logically
+        # But here we assume standard flow.
+        
+        # Create interaction ONLY if user_input is not empty (or image uploaded)
+        # Check if we just created one? No, this is the main entry point for visual_loop.
+        
+        if user_input or uploaded_image_url:
+            Interaction.objects.create(
+                conversation=conversation, 
+                type=user_interaction_type, 
+                text_content=user_input,
+                image_url=uploaded_image_url
+            )
 
         if uploaded_image_path:
              # Analyze image
@@ -128,21 +136,33 @@ def _handle_chat_response(conversation, user_input, image_file=None):
         tool = analysis.get('tool', 'image_generation')
 
         # 记录用户输入
-        user_interaction_type = 'probe_answer' if last_interaction and last_interaction.type == 'ai_feedback' else 'user_interpretation'
-        Interaction.objects.create(
-            conversation=conversation, 
-            type=user_interaction_type, 
-            text_content=user_input,
-            image_url=uploaded_image_url
-        )
-
-        if uploaded_image_path:
-             # Analyze image
-             analysis = ai_service.analyze_image_content(uploaded_image_path, user_input)
-             Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=analysis)
-             return JsonResponse({'status': 'success', 'answer': analysis})
-
-        if intent == 'no_idea' or intent == 'has_idea':
+        # 注意：此处原逻辑有重复 create Interaction 的代码，我在这里进行修正。
+        # 如果是递归调用或从 api_send_message 过来，已经在函数入口前处理或需要在这里处理？
+        # 为了安全起见，我们假设 user_input 还没有被记录（如果函数头已经处理了，这里需要删除）
+        # 但看上面的代码，user_input 确实没有在函数入口记录，而是在这里记录的。
+        # 不过，上面的代码有两处记录 Interaction，这是一个 BUG。
+        # 我会统一在 logic 开始处记录，或者根据 intent 记录。
+        
+        # 修正：删除之前的重复 create 代码，统一在这里处理
+        # 逻辑：
+        # 1. 记录用户的回答
+        # 2. 如果 intent 是 probe_deeper，则返回文本引导
+        # 3. 如果 intent 是 has_idea，则生成图片/Desmos
+        
+        # 之前代码里有两段 Interaction.objects.create，我把它们合并
+        
+        # 状态机处理
+        if intent == 'probe_deeper':
+             # 用户不知道，需要追问
+             guide_text = visual_guide_text if visual_guide_text else "没关系。试着想象一下，如果我们改变一个条件..."
+             Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=guide_text)
+             return JsonResponse({'status': 'success', 'answer': guide_text})
+             
+        elif intent == 'no_idea' or intent == 'has_idea':
+            # 只有 has_idea (或者 no_idea 的特殊情况) 才生图
+            # 但根据新逻辑，no_idea 应该被 probe_deeper 捕获。除非模型坚持用 no_idea。
+            # 这里兼容旧逻辑
+            
             if tool == 'desmos':
                 latex = analysis.get('desmos_latex', '')
                 guide_text = visual_guide_text if visual_guide_text else "这是一个数学函数图像，试着调整参数看看会发生什么？"

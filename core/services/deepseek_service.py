@@ -91,7 +91,18 @@ class DeepSeekService:
         
         Analyze the user's input and context to determine the Next Visual Scene.
         
-        **CRITICAL STEP: Determine Cognitive Level & Visual Tool**
+        **CRITICAL STEP: Determine User Intent & Cognitive State**
+        1. **User is Clueless** ("I don't know", "No idea", "Tell me"):
+           - Action: **PROBE_DEEPER**. Do NOT generate a visual yet. Ask a simpler, foundational question to spark their intuition.
+           - Return intent="probe_deeper".
+        2. **User has a Guess/Hypothesis** (Even if wrong):
+           - Action: **VISUALIZE**. Generate a visual (Image or Desmos) to test or illustrate their guess.
+           - Return intent="has_idea".
+        3. **User is Explaining/Analyzing**:
+           - Action: **EVALUATE**. Check if their understanding is correct.
+           - Return intent="explaining_image".
+
+        **CRITICAL STEP: Determine Cognitive Level & Visual Tool (Only if visualizing)**
         1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "How do trees grow?", "History of Rome"):
            - Tool: **IMAGE_GENERATION** (Flux.1)
            - Style: **REALISTIC, CINEMATIC, DOCUMENTARY PHOTOGRAPHY**.
@@ -104,7 +115,7 @@ class DeepSeekService:
 
         RETURN JSON FORMAT:
         {
-            "intent": "has_idea" | "no_idea" | "explaining_image",
+            "intent": "has_idea" | "no_idea" | "explaining_image" | "probe_deeper",
             "tool": "image_generation" | "desmos",
             "desmos_latex": "y=x^2" (only if tool is desmos),
             "evaluation": "pass" | "fail",
