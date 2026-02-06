@@ -95,9 +95,9 @@ class DeepSeekService:
         1. **Curiosity/Nature/Life** (e.g., "Why is sky blue?", "How do trees grow?", "History of Rome"):
            - Tool: **IMAGE_GENERATION** (Flux.1)
            - Style: **REALISTIC, CINEMATIC, DOCUMENTARY PHOTOGRAPHY**.
-        2. **Math/Functions/Geometry** (e.g., "y=x^2", "Sin wave", "Parabola properties"):
+        2. **Math/Functions/Geometry** (e.g., "y=x^2", "Sin wave", "Parabola properties", "Function Monotonicity"):
            - Tool: **DESMOS_CALCULATOR**
-           - Action: Generate a specific LaTeX formula for Desmos.
+           - Action: Generate a specific LaTeX formula for Desmos. For concepts like "Monotonicity", provide an illustrative function (e.g. y=x^3 or y=e^x).
         3. **Academic/Abstract/Logic** (non-math):
            - Tool: **IMAGE_GENERATION**
            - Style: **MINIMALIST, INFOGRAPHIC**.
