@@ -10,7 +10,7 @@
 <div class="flex h-[calc(100vh-64px)] bg-slate-100 overflow-hidden relative">
     
     <!-- 左侧：历史记录 (仅在大屏显示) -->
-    <div class="w-64 bg-white border-r border-slate-200 hidden lg:flex flex-col z-10 shadow-sm">
+    <div class="w-64 bg-white border-r border-slate-200 hidden lg:flex flex-col z-10 shadow-sm transition-all duration-300" id="sidebar">
         <div class="p-4 border-b border-slate-200 flex justify-between items-center">
             <h2 class="font-bold text-slate-700">思考记录</h2>
             <a href="{% url 'chat_new' %}" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center gap-1">
@@ -33,8 +33,13 @@
     </div>
 
     <!-- 中间：书籍容器 -->
-    <div class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 relative">
+    <div class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 relative transition-all duration-500" id="main-content">
         
+        <!-- 全屏开关 -->
+        <button onclick="toggleFullscreen()" class="absolute top-4 right-4 z-50 p-2 bg-white/80 backdrop-blur text-slate-500 hover:text-indigo-600 rounded-full shadow-sm hover:shadow transition" title="全屏沉浸模式">
+            <i class="ph-bold ph-arrows-out-simple text-xl" id="fullscreen-icon"></i>
+        </button>
+
         <!-- 书籍卡片 -->
         <div class="w-full max-w-3xl bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-500 ease-in-out relative h-[85vh]" id="book-container">
             
@@ -228,9 +233,77 @@
         background-color: #e2e8f0;
         border-radius: 20px;
     }
+
+    /* Fullscreen Mode Styles */
+    body.fullscreen-mode #sidebar {
+        display: none !important;
+    }
+    body.fullscreen-mode header { /* Assuming header exists in base.html */
+        display: none !important;
+    }
+    body.fullscreen-mode .h-\[calc\(100vh-64px\)\] {
+        height: 100vh !important;
+    }
+    body.fullscreen-mode #main-content {
+        padding: 0 !important;
+        background-color: #f8fafc; /* Slate-50 background for immersion */
+    }
+    body.fullscreen-mode #book-container {
+        max-width: 1000px; /* Wider book */
+        height: 95vh;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        border-radius: 2px; /* Sharper corners like a real book? Or keep round. Keep round. */
+    }
+    /* Add book spine effect in fullscreen */
+    body.fullscreen-mode #book-container::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 12px;
+        background: linear-gradient(to right, rgba(0,0,0,0.05), rgba(0,0,0,0));
+        z-index: 50;
+        pointer-events: none;
+    }
 </style>
 
 <script>
+    // --- Fullscreen Logic ---
+    function toggleFullscreen() {
+        const body = document.body;
+        const icon = document.getElementById('fullscreen-icon');
+        
+        if (!document.fullscreenElement) {
+            // Enter fullscreen
+            document.documentElement.requestFullscreen().catch(err => {
+                console.log(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+            body.classList.add('fullscreen-mode');
+            icon.classList.remove('ph-arrows-out-simple');
+            icon.classList.add('ph-arrows-in-simple');
+        } else {
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+            body.classList.remove('fullscreen-mode');
+            icon.classList.remove('ph-arrows-in-simple');
+            icon.classList.add('ph-arrows-out-simple');
+        }
+    }
+    
+    // Listen for Escape key or other exit methods
+    document.addEventListener('fullscreenchange', () => {
+        const body = document.body;
+        const icon = document.getElementById('fullscreen-icon');
+        if (!document.fullscreenElement) {
+            body.classList.remove('fullscreen-mode');
+            icon.classList.remove('ph-arrows-in-simple');
+            icon.classList.add('ph-arrows-out-simple');
+        }
+    });
+
     // --- State Management ---
     const conversationId = "{{ conversation.id }}";
     let historyData = []; // To store chat history

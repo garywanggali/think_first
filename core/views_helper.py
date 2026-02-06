@@ -62,10 +62,10 @@ def _handle_chat_response(conversation, user_input, image_file=None):
     
     # --- DEMO MODE CHECK ---
     # Check for "Relativity Demo" trigger
-    # Trigger 1: Explicit command "demo:relativity"
+    # Trigger 1: Explicit command "广义相对论是什么？"
     # Trigger 2: User asks specifically about "引力" or "相对论" as the FIRST question
     is_demo_trigger = False
-    if "demo:relativity" in user_input.lower():
+    if "广义相对论是什么" in user_input.replace("？", "").replace("?", ""):
         is_demo_trigger = True
         user_input = "为什么会有引力？" # Normalize input for demo start
     elif conversation.interactions.count() <= 1 and ("引力" in user_input or "相对论" in user_input):
