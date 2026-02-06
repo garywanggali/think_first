@@ -1,42 +1,32 @@
 import json
 import urllib.parse
 from django.conf import settings
-import requests
+from openai import OpenAI
 from core.utils import save_image_from_url
 
 class DeepSeekService:
     def __init__(self):
         self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', '')
-        self.api_base = "https://api.deepseek.com/chat/completions"
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url="https://api.deepseek.com"
+        )
 
     def chat_completion(self, messages, json_mode=False):
         """
-        调用 DeepSeek V3 (使用原生 requests，无需 openai sdk)
+        调用 DeepSeek V3
         """
         if not self.api_key or 'Please_Set' in self.api_key:
             return "Error: DeepSeek API Key not configured."
         
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-        
-        payload = {
-            "model": "deepseek-chat",
-            "messages": messages,
-            "temperature": 1.3,
-            "stream": False
-        }
-        
-        # 如果需要 JSON 模式，DeepSeek V3 支持 response_format
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
-
         try:
-            response = requests.post(self.api_base, headers=headers, json=payload, timeout=60)
-            response.raise_for_status()
-            data = response.json()
-            return data['choices'][0]['message']['content']
+            response = self.client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                temperature=1.3,
+                response_format={"type": "json_object"} if json_mode else None
+            )
+            return response.choices[0].message.content
         except Exception as e:
             print(f"DeepSeek API Error: {e}")
             return f"Error: {str(e)}"
