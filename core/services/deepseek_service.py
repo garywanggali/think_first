@@ -44,19 +44,19 @@ class DeepSeekService:
             return "https://placehold.co/1024x1024/png?text=API+Key+Missing"
 
         try:
-                url = "https://api.siliconflow.cn/v1/images/generations"
-                headers = {
-                    "Authorization": f"Bearer {silicon_key}",
-                    "Content-Type": "application/json"
-                }
-                payload = {
-                    "model": "black-forest-labs/FLUX.1-dev", # 切换到 Dev 版，质量更好
-                    "prompt": prompt,
-                    "image_size": "1024x1024",
-                    "num_inference_steps": 20 # Dev 版推荐 20-50 步
-                }
-                
-                response = requests.post(url, json=payload, headers=headers)
+            url = "https://api.siliconflow.cn/v1/images/generations"
+            headers = {
+                "Authorization": f"Bearer {silicon_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "black-forest-labs/FLUX.1-dev", # 切换到 Dev 版，质量更好
+                "prompt": prompt,
+                "image_size": "1024x1024",
+                "num_inference_steps": 20 # Dev 版推荐 20-50 步
+            }
+            
+            response = requests.post(url, json=payload, headers=headers)
             response.raise_for_status()
             data = response.json()
             
