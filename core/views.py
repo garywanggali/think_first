@@ -69,12 +69,23 @@ from .views_helper import _handle_chat_response, api_retry_last_message
 @csrf_exempt
 def api_send_message(request):
     if request.method == 'POST':
-        data = json.loads(request.body)
-        conversation_id = data.get('conversation_id')
-        user_input = data.get('query')
+        # Check if it's multipart/form-data or JSON
+        if request.content_type.startswith('multipart/form-data') or request.FILES:
+            conversation_id = request.POST.get('conversation_id')
+            user_input = request.POST.get('query')
+            image_file = request.FILES.get('image')
+        else:
+            # Fallback for JSON (e.g. from existing logic or tests)
+            try:
+                data = json.loads(request.body)
+                conversation_id = data.get('conversation_id')
+                user_input = data.get('query')
+                image_file = None
+            except json.JSONDecodeError:
+                return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
         
         conversation = get_object_or_404(Conversation, id=conversation_id, user=request.user)
         
-        return _handle_chat_response(conversation, user_input)
+        return _handle_chat_response(conversation, user_input, image_file)
             
     return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)

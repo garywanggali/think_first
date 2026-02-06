@@ -140,6 +140,76 @@ class DeepSeekService:
         ]
         return self.chat_completion(messages)
 
+    def analyze_image_content(self, image_path, prompt):
+        """
+        调用 SiliconFlow Vision 模型 (Qwen2-VL) 分析图片
+        """
+        import base64
+        import requests
+        
+        print(f"DEBUG: Analyzing image {image_path} via SiliconFlow...")
+        
+        silicon_key = getattr(settings, 'SILICONFLOW_API_KEY', '')
+        if not silicon_key:
+            return "Error: SiliconFlow API Key not set."
+
+        # Encode image
+        try:
+            with open(image_path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                # Assume jpeg/png, base64 header usually works generically or we can detect type
+                # But Qwen/OpenAI usually accepts data:image/jpeg;base64 even for png
+                image_url = f"data:image/jpeg;base64,{encoded_string}"
+        except Exception as e:
+            return f"Error reading image: {e}"
+
+        try:
+            url = "https://api.siliconflow.cn/v1/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {silicon_key}",
+                "Content-Type": "application/json"
+            }
+            
+            # Using Qwen2-VL-72B-Instruct (Better) or 7B. Let's try 72B for quality if available, or 7B.
+            # Safe bet: Qwen/Qwen2-VL-7B-Instruct
+            model_name = "Qwen/Qwen2-VL-72B-Instruct" 
+            
+            if not prompt:
+                prompt = "请详细描述这张图片的内容，并结合上下文分析它。"
+
+            payload = {
+                "model": model_name, 
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url", "image_url": {"url": image_url}},
+                            {"type": "text", "text": prompt}
+                        ]
+                    }
+                ],
+                "max_tokens": 1024
+            }
+            
+            response = requests.post(url, json=payload, headers=headers)
+            # If 72B fails (e.g. 404 or 400), fallback to 7B? 
+            # But let's assume it works or just use 7B which is safer.
+            # Actually, let's use 7B to be safe on quota/availability.
+            if response.status_code != 200:
+                print(f"WARNING: Vision API failed with {model_name}, trying 7B...")
+                payload["model"] = "Qwen/Qwen2-VL-7B-Instruct"
+                response = requests.post(url, json=payload, headers=headers)
+
+            response.raise_for_status()
+            result = response.json()
+            return result['choices'][0]['message']['content']
+            
+        except Exception as e:
+            print(f"ERROR: SiliconFlow Vision Error: {e}")
+            if 'response' in locals():
+                print(f"Response: {response.text}")
+            return f"图片分析失败: {str(e)}"
+
     def generate_initial_probe(self, user_question):
         """
         生成个性化的初始引导语

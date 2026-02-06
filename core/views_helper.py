@@ -44,8 +44,21 @@ def api_retry_last_message(request):
         return JsonResponse({'status': 'no_need_to_retry'})
     return JsonResponse({'status': 'error'}, status=405)
 
-def _handle_chat_response(conversation, user_input):
+from core.utils import save_uploaded_file
+
+def _handle_chat_response(conversation, user_input, image_file=None):
     ai_service = DeepSeekService()
+    
+    # Check if image uploaded
+    uploaded_image_url = None
+    uploaded_image_path = None
+    
+    if image_file:
+        uploaded_image_url, uploaded_image_path = save_uploaded_file(image_file)
+    
+    # Fallback text if only image provided
+    if not user_input and uploaded_image_url:
+        user_input = "[用户上传了一张图片]"
     
     # 1. Review 状态
     if conversation.status == 'review':
@@ -54,11 +67,26 @@ def _handle_chat_response(conversation, user_input):
     # 2. Initial Probe 状态
     if conversation.status == 'initial_probe':
         # 记录用户回答（问题）
-        Interaction.objects.create(conversation=conversation, type='question', text_content=user_input)
+        Interaction.objects.create(
+            conversation=conversation, 
+            type='question', 
+            text_content=user_input,
+            image_url=uploaded_image_url
+        )
         
-        answer = ai_service.generate_initial_probe(user_input)
-        if not answer:
-            answer = "收到。关于这个问题，你现在有什么初步的想法或直觉吗？"
+        # If user starts with image, we analyze it as initial probe?
+        # Maybe just treat it as context.
+        # But for now, let's keep it simple: just save it and proceed with standard flow.
+        # Unless we want to use vision analysis to set the topic?
+        
+        if uploaded_image_path:
+             # Analyze image to understand user intent/topic
+             analysis = ai_service.analyze_image_content(uploaded_image_path, user_input)
+             answer = f"我看到了你上传的图片。AI分析结果：{analysis}\n\n基于此，你有什么想进一步探讨的问题吗？"
+        else:
+            answer = ai_service.generate_initial_probe(user_input)
+            if not answer:
+                answer = "收到。关于这个问题，你现在有什么初步的想法或直觉吗？"
         
         Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=answer)
         
@@ -71,6 +99,22 @@ def _handle_chat_response(conversation, user_input):
     # 3. Visual Loop 状态
     elif conversation.status == 'visual_loop':
         last_interaction = conversation.interactions.last()
+        
+        # 记录用户输入
+        user_interaction_type = 'probe_answer' if last_interaction and last_interaction.type == 'ai_feedback' else 'user_interpretation'
+        Interaction.objects.create(
+            conversation=conversation, 
+            type=user_interaction_type, 
+            text_content=user_input,
+            image_url=uploaded_image_url
+        )
+
+        if uploaded_image_path:
+             # Analyze image
+             analysis = ai_service.analyze_image_content(uploaded_image_path, user_input)
+             Interaction.objects.create(conversation=conversation, type='ai_feedback', text_content=analysis)
+             return JsonResponse({'status': 'success', 'answer': analysis})
+
         recent_interactions = conversation.interactions.all().order_by('-created_at')[:5]
         recent_interactions = reversed(recent_interactions)
         
@@ -81,10 +125,6 @@ def _handle_chat_response(conversation, user_input):
         feedback = analysis.get('feedback', '')
         visual_prompt = analysis.get('visual_prompt')
         visual_guide_text = analysis.get('visual_guide_text')
-        
-        # 记录用户输入
-        user_interaction_type = 'probe_answer' if last_interaction and last_interaction.type == 'ai_feedback' else 'user_interpretation'
-        Interaction.objects.create(conversation=conversation, type=user_interaction_type, text_content=user_input)
 
         if intent == 'no_idea' or intent == 'has_idea':
             prompt = visual_prompt if visual_prompt else ai_service.generate_visual_prompt(conversation.topic, user_input if intent == 'has_idea' else "Concept of " + conversation.topic)

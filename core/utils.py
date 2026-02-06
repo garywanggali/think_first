@@ -28,3 +28,27 @@ def save_image_from_url(image_url):
     except Exception as e:
         print(f"Error saving image: {e}")
         return None
+
+def save_uploaded_file(uploaded_file):
+    """
+    保存上传的文件到 media/user_uploads/ 目录
+    """
+    try:
+        save_dir = os.path.join(settings.MEDIA_ROOT, 'user_uploads')
+        os.makedirs(save_dir, exist_ok=True)
+        
+        ext = os.path.splitext(uploaded_file.name)[1]
+        if not ext:
+            ext = '.jpg' # Default
+            
+        filename = f"{uuid.uuid4()}{ext}"
+        file_path = os.path.join(save_dir, filename)
+        
+        with open(file_path, 'wb') as f:
+            for chunk in uploaded_file.chunks():
+                f.write(chunk)
+                
+        return f"{settings.MEDIA_URL}user_uploads/{filename}", file_path
+    except Exception as e:
+        print(f"Error saving uploaded file: {e}")
+        return None, None

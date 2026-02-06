@@ -101,7 +101,13 @@
 
                 <!-- 文本输入 -->
                 <div id="input-text" class="block">
-                    <div class="relative">
+                    <div class="relative flex items-center gap-2">
+                        <!-- Upload Button -->
+                        <button onclick="document.getElementById('image-upload').click()" class="p-2 text-slate-500 hover:text-indigo-600 transition-colors" title="上传图片">
+                            <i class="ph ph-image text-2xl"></i>
+                        </button>
+                        <input type="file" id="image-upload" class="hidden" accept="image/*" onchange="previewImage(this)">
+
                         <textarea id="message-input" name="query" rows="1" 
                             class="block w-full rounded-full border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pr-12 resize-none py-3 px-4" 
                             placeholder="输入你的想法... (Enter发送，Shift+Enter换行)" 
@@ -112,6 +118,13 @@
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                             </svg>
+                        </button>
+                    </div>
+                    <!-- Image Preview -->
+                    <div id="image-preview-container" class="hidden mt-2 relative inline-block">
+                        <img id="image-preview" class="h-20 w-20 object-cover rounded-lg border border-slate-200">
+                        <button onclick="clearImagePreview()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-sm">
+                            <i class="ph ph-x text-xs"></i>
                         </button>
                     </div>
                 </div>
@@ -152,25 +165,57 @@
         btn.classList.add('bg-indigo-100', 'text-indigo-700');
     }
 
+    // --- Image Upload Logic ---
+    function previewImage(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('image-preview').src = e.target.result;
+                document.getElementById('image-preview-container').classList.remove('hidden');
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    function clearImagePreview() {
+        document.getElementById('image-upload').value = '';
+        document.getElementById('image-preview').src = '';
+        document.getElementById('image-preview-container').classList.add('hidden');
+    }
+
     async function sendMessage() {
         if (isWaiting) return;
         const input = document.getElementById('message-input');
+        const fileInput = document.getElementById('image-upload');
         const text = input.value.trim();
-        if (!text) return;
+        const file = fileInput.files[0];
+        
+        if (!text && !file) return;
 
         // UI Update
-        appendUserMessage(text);
+        let imageUrl = null;
+        if (file) {
+            // Create a temporary object URL for immediate display
+            imageUrl = URL.createObjectURL(file);
+        }
+        appendUserMessage(text, imageUrl);
+        
         input.value = '';
+        clearImagePreview(); // Clear preview after sending
         showLoading();
 
         try {
+            const formData = new FormData();
+            formData.append('conversation_id', conversationId);
+            formData.append('query', text);
+            if (file) {
+                formData.append('image', file);
+            }
+
             const response = await fetch('{% url "api_send_message" %}', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    conversation_id: conversationId,
-                    query: text
-                })
+                // headers: { 'Content-Type': 'multipart/form-data' }, // Do NOT set this manually for FormData
+                body: formData
             });
             console.log("Sending message...", text); // Debug
             const data = await response.json();
@@ -192,15 +237,24 @@
         }
     }
 
-    function appendUserMessage(text) {
+    function appendUserMessage(text, imageUrl=null) {
         const div = document.createElement('div');
         div.className = 'flex gap-4 flex-row-reverse animate-fade-in-up';
+        
+        let contentHtml = '';
+        if (imageUrl) {
+            contentHtml += `<div class="mb-2"><img src="${imageUrl}" class="rounded-lg max-h-48 border border-indigo-400"></div>`;
+        }
+        if (text) {
+            contentHtml += `<p>${text.replace(/\n/g, '<br>')}</p>`;
+        }
+        
         div.innerHTML = `
             <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 flex-shrink-0">
                 <i class="ph-fill ph-user text-2xl"></i>
             </div>
             <div class="bg-indigo-600 text-white p-4 rounded-2xl rounded-tr-none max-w-2xl">
-                <p>${text.replace(/\n/g, '<br>')}</p>
+                ${contentHtml}
             </div>
         `;
         chatContainer.insertBefore(div, document.getElementById('loading-indicator'));
