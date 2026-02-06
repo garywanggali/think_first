@@ -95,3 +95,33 @@ def api_send_message(request):
         return _handle_chat_response(conversation, user_input, image_file)
             
     return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)
+
+@login_required
+@csrf_exempt
+def api_rollback_conversation(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            conversation_id = data.get('conversation_id')
+            interaction_id = data.get('interaction_id')
+            
+            conversation = get_object_or_404(Conversation, id=conversation_id, user=request.user)
+            target_interaction = get_object_or_404(Interaction, id=interaction_id, conversation=conversation)
+            
+            # Delete all interactions strictly AFTER the target
+            # Note: We rely on created_at or id order. ID is safer for insertion order usually.
+            Interaction.objects.filter(
+                conversation=conversation,
+                id__gt=target_interaction.id
+            ).delete()
+            
+            # Reset status if needed
+            if conversation.status == 'review' or conversation.is_completed:
+                conversation.status = 'visual_loop'
+                conversation.is_completed = False
+                conversation.save()
+                
+            return JsonResponse({'status': 'success'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)

@@ -432,7 +432,7 @@ def _handle_relativity_demo(conversation, user_input, is_start, uploaded_image_u
 
     elif step == 4: # User: "So?"
         # Step 5: "Small ball falls in"
-        prompt = "Minimalist vector art, white background. A large red ball in a curved grid dip. A smaller blue ball is rolling along the curve, falling towards the red ball. Trajectory line shown."
+        prompt = "Minimalist vector art, white background. Physics diagram. A heavy red ball sits in the center of a distorted grid that curves downwards like a funnel. A small blue ball is rolling along the curved slope. A dashed curved arrow clearly shows the blue ball's path spiraling towards the red ball, demonstrating gravity."
         text = "现在，如果有一个更小的球经过，会发生什么？它不会走直线，而是会顺着这个弯曲滚向大球。"
         
         image_url = ai_service.generate_image(prompt)

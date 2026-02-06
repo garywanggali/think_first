@@ -121,9 +121,12 @@
                         <i class="ph-bold ph-arrow-left"></i> 上一页
                     </button>
                     
-                    <button onclick="skipPage()" id="btn-skip" class="hidden flex items-center gap-2 text-slate-400 hover:text-slate-600 transition text-sm">
-                         跳过此步 <i class="ph-bold ph-fast-forward"></i>
-                    </button>
+                    <!-- 历史回滚控制区 -->
+                    <div id="history-controls" class="hidden items-center gap-2 animate-fade-in">
+                         <button onclick="rollbackToCurrentPage()" class="px-4 py-2 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 rounded-lg text-sm font-medium transition flex items-center gap-2 shadow-sm">
+                            <i class="ph-bold ph-arrow-u-up-left"></i> 从此处继续
+                        </button>
+                    </div>
 
                     <button onclick="nextPage()" class="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition px-4 py-2 rounded-lg hover:bg-slate-200">
                         下一页 <i class="ph-bold ph-arrow-right"></i>
@@ -527,15 +530,69 @@
         
         // Nav buttons visibility
         const nav = document.getElementById('nav-controls');
-        const input = document.getElementById('input-controls');
         
-        // Logic: 
-        // Always show Nav if totalPages > 1
-        // Input is hidden if we are browsing history (currentPage < totalPages)
+        if (totalPages > 0) {
+             nav.classList.remove('hidden');
+             nav.classList.add('flex');
+        } else {
+             nav.classList.add('hidden');
+             nav.classList.remove('flex');
+        }
         
-        if (currentPage < totalPages || (currentPage > 0 && !isWaiting)) {
-             // We can navigate back if > 1
-             // We can navigate forward if < totalPages
+        // History Controls Visibility
+        const historyControls = document.getElementById('history-controls');
+        if (historyControls) {
+            if (currentPage < totalPages && currentPage > 0) {
+                 historyControls.classList.remove('hidden');
+                 historyControls.classList.add('flex');
+            } else {
+                 historyControls.classList.add('hidden');
+                 historyControls.classList.remove('flex');
+            }
+        }
+    }
+
+    async function rollbackToCurrentPage() {
+        if (!confirm('确定要回到这一步吗？在此之后的所有对话记录将被删除。')) return;
+        
+        const turn = historyData[currentPage - 1];
+        let targetId = null;
+        if (turn.ai && turn.ai.id) {
+            targetId = turn.ai.id;
+        } else if (turn.user && turn.user.id) {
+            targetId = turn.user.id;
+        }
+        
+        if (!targetId) {
+            alert("无法定位该步骤 ID");
+            return;
+        }
+        
+        try {
+            const response = await fetch('{% url "api_rollback_conversation" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    conversation_id: conversationId, 
+                    interaction_id: targetId 
+                })
+            });
+            
+            const data = await response.json();
+            if (data.status === 'success') {
+                // Slice history locally
+                historyData = historyData.slice(0, currentPage);
+                totalPages = historyData.length;
+                currentPage = totalPages;
+                
+                // Re-render
+                renderPage(currentPage);
+            } else {
+                alert("回退失败: " + data.message);
+            }
+        } catch(e) {
+            console.error(e);
+            alert("请求失败");
         }
     }
 
@@ -566,20 +623,21 @@
     function toggleInputArea(show) {
         const inputDiv = document.getElementById('input-controls');
         const navDiv = document.getElementById('nav-controls');
-        const skipBtn = document.getElementById('btn-skip');
         
         if (show) {
             inputDiv.classList.remove('hidden');
             inputDiv.classList.add('block');
-            navDiv.classList.add('hidden'); 
-            navDiv.classList.remove('flex');
             
-            // In input mode, we can show Skip button somewhere if we want,
-            // but usually skip is an alternative to input.
-            // Let's add a small "Skip" link near input area instead of nav bar?
-            // Or use the nav bar slot for it?
-            
-            // For now, let's keep it simple.
+            // If we have history (more than 1 page), show nav even if input is active
+            // This allows user to go back to history from the latest page
+            if (totalPages > 0) {
+                 navDiv.classList.remove('hidden');
+                 navDiv.classList.add('flex');
+            } else {
+                 navDiv.classList.add('hidden'); 
+                 navDiv.classList.remove('flex');
+            }
+
         } else {
             inputDiv.classList.add('hidden');
             inputDiv.classList.remove('block');
@@ -588,9 +646,6 @@
             if (totalPages > 0) {
                 navDiv.classList.remove('hidden');
                 navDiv.classList.add('flex');
-                
-                // Only show skip if we are waiting? No, skip is for user turn.
-                // Actually, skip is useful when user is STUCK at input.
             }
         }
     }
